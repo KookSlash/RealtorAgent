@@ -1,0 +1,19 @@
+services:
+  parser:
+    build:
+      context: .
+    env_file:
+      - ../../infra/.env
+    environment:
+      LOCALSTACK_ENDPOINT: http://localstack:4566
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      MAX_RETRIES: 3
+      DRY_RUN: "false"
+      LOG_LEVEL: info
+    networks:
+      - calgary_net
+
+networks:
+  calgary_net:
+    external: true

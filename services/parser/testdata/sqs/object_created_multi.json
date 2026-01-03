@@ -1,0 +1,1 @@
+{"Records":[{"s3":{"bucket":{"name":"raw-bucket"},"object":{"key":"raw/realtorca/2025-01-01/run-1.jsonl"}}},{"s3":{"bucket":{"name":""},"object":{"key":"raw/realtorca/2025-01-01/run-2.jsonl"}}},{"s3":{"bucket":{"name":"raw-bucket"},"object":{"key":""}}},{"s3":{"bucket":{"name":"raw-bucket"},"object":{"key":"raw/realtorca/2025-01-02/run-3.jsonl"}}}]}
