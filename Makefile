@@ -49,3 +49,12 @@ reset:
 	docker compose -f $(INFRA_COMPOSE) --env-file $(INFRA_ENV) up -d
 	./scripts/init-localstack.sh
 	./scripts/smoke-s3-sqs.sh
+
+.PHONY: db-migrate db-psql
+
+db-migrate:
+	./scripts/db-migrate.sh
+
+db-psql:
+	@set -a; source infra/.env; set +a; \
+	docker exec -it postgres psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
