@@ -26,6 +26,7 @@ type Config struct {
 	UserAgent          string
 	RateLimitMs        int
 	MaxPages           int
+	DryRun             bool
 }
 
 func Load() (Config, error) {
@@ -66,6 +67,10 @@ func Load() (Config, error) {
 		return cfg, err
 	}
 	cfg.MaxPages, err = resolveIntEnv("MAX_PAGES", defaultMaxPages)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.DryRun, err = resolveBoolEnv("DRY_RUN", false)
 	if err != nil {
 		return cfg, err
 	}
@@ -115,6 +120,18 @@ func resolveIntEnv(key string, defaultValue int) (int, error) {
 	parsed, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
 		return 0, fmt.Errorf("%s must be an integer", key)
+	}
+	return parsed, nil
+}
+
+func resolveBoolEnv(key string, defaultValue bool) (bool, error) {
+	value, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean", key)
 	}
 	return parsed, nil
 }

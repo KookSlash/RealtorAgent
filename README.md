@@ -79,6 +79,19 @@ make infra-status
 
 Note: S3 can emit an initial s3:TestEvent to SQS; consumers must ignore it.
 
+## Run scraper locally (LocalStack)
+Example (uploads dummy JSONL to S3):
+- export AWS_REGION=us-west-2
+- export LOCALSTACK_ENDPOINT=http://localhost:4566
+- export RAW_BUCKET=calgary-raw-bucket
+- export DRY_RUN=false
+- cd services/scraper
+- go run ./cmd/scraper
+
+## Test scraper upload
+Run the LocalStack upload verification:
+- ./scripts/test-scraper-upload.sh
+
 ## Repo structure
 - infra/ (docker-compose, local aws emulation)
 - services/ (scraper, parser, api later)

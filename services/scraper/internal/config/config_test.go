@@ -28,6 +28,7 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		t.Setenv("MAX_PAGES", "")
 		t.Setenv("SCRAPE_DATE", "")
 		t.Setenv("RUN_ID", "")
+		t.Setenv("DRY_RUN", "")
 
 		cfg, err := Load()
 		if err != nil {
@@ -53,6 +54,9 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		}
 		if !regexp.MustCompile(`^\d{8}T\d{6}Z$`).MatchString(cfg.RunID) {
 			t.Fatalf("expected run id format 20060102T150405Z, got %s", cfg.RunID)
+		}
+		if cfg.DryRun {
+			t.Fatalf("expected dry run default false")
 		}
 	})
 
@@ -83,6 +87,20 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		_, err := Load()
 		if err == nil {
 			t.Fatalf("expected error for empty OUTPUT_KEY_PREFIX")
+		}
+	})
+
+	t.Run("dry run true", func(t *testing.T) {
+		t.Setenv("RAW_BUCKET", "bucket")
+		t.Setenv("OUTPUT_KEY_PREFIX", defaultOutputKeyPrefix)
+		t.Setenv("DRY_RUN", "true")
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !cfg.DryRun {
+			t.Fatalf("expected dry run true")
 		}
 	})
 }
