@@ -1,0 +1,49 @@
+name: calgary-realestate-infra
+
+services:
+  localstack:
+    image: ${LOCALSTACK_IMAGE}
+    container_name: localstack
+    ports:
+      - "${LOCALSTACK_PORT}:4566"
+    environment:
+      - SERVICES=s3,sqs
+      - DEFAULT_REGION=${AWS_REGION}
+      - DEBUG=1
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - calgary_net
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -sf http://localhost:4566/_localstack/health | grep -q '\"s3\": \"running\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: postgres
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - calgary_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  localstack_data:
+  pg_data:
+
+networks:
+  calgary_net:
+    name: calgary_net
