@@ -1,6 +1,6 @@
-# Calgary Real Estate Monitor
+# Real Estate Monitor
 
-## What this does (functional)
+## What this does 
 Daily snapshots of REALTOR.ca listings, deduplicates properties, tracks changes over time, and enables analytics/search.
 
 ## Quickstart
