@@ -2,6 +2,8 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -37,4 +39,14 @@ func NewListingSnapshot(scrapedAt time.Time, sourcePayload json.RawMessage) List
 
 func (l *ListingSnapshot) SetScrapedAt(scrapedAt time.Time) {
 	l.ScrapedAt = scrapedAt.UTC().Format(time.RFC3339)
+}
+
+func (l ListingSnapshot) CanonicalIdentity() string {
+	return CanonicalIdentity(l.Address, l.PostalCode)
+}
+
+func CanonicalIdentity(address, postalCode string) string {
+	normalizedAddress := strings.ToUpper(strings.TrimSpace(address))
+	normalizedPostal := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(postalCode), " ", ""))
+	return fmt.Sprintf("%s|%s", normalizedAddress, normalizedPostal)
 }

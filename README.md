@@ -80,13 +80,24 @@ make infra-status
 Note: S3 can emit an initial s3:TestEvent to SQS; consumers must ignore it.
 
 ## Run scraper locally (LocalStack)
-Example (uploads dummy JSONL to S3):
+Dummy mode (uploads dummy JSONL to S3):
 - export AWS_REGION=us-west-2
 - export LOCALSTACK_ENDPOINT=http://localhost:4566
 - export RAW_BUCKET=calgary-raw-bucket
 - export DRY_RUN=false
 - cd services/scraper
 - go run ./cmd/scraper
+
+Real HTML scrape (free, no paid APIs):
+- export SEARCH_ENTRYPOINT_URL=https://www.realtor.ca/ab/calgary/real-estate
+- export MAX_PAGES=20
+- export RATE_LIMIT_MS=500
+- export USER_AGENT="RealtorAgentScraper/0.1"
+- go run ./cmd/scraper
+
+Notes:
+- REALTOR.ca exposes hash (`#`) pagination for client-side map views; the scraper ignores hash links and follows server-side pagination discovered from the bootstrap HTML.
+- Extraction is JSON-first (embedded `SEOLandingPageInitialResponse`) with DOM fallback when JSON is missing or empty.
 
 ## Test scraper upload
 Run the LocalStack upload verification:

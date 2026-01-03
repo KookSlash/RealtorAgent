@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -17,16 +18,17 @@ const (
 )
 
 type Config struct {
-	AWSRegion          string
-	LocalstackEndpoint string
-	RawBucket          string
-	ScrapeDate         string
-	RunID              string
-	OutputKeyPrefix    string
-	UserAgent          string
-	RateLimitMs        int
-	MaxPages           int
-	DryRun             bool
+	AWSRegion           string
+	LocalstackEndpoint  string
+	RawBucket           string
+	ScrapeDate          string
+	RunID               string
+	OutputKeyPrefix     string
+	UserAgent           string
+	RateLimitMs         int
+	MaxPages            int
+	DryRun              bool
+	SearchEntrypointURL string
 }
 
 func Load() (Config, error) {
@@ -36,12 +38,18 @@ func Load() (Config, error) {
 	cfg.LocalstackEndpoint = strings.TrimSpace(os.Getenv("LOCALSTACK_ENDPOINT"))
 	cfg.RawBucket = strings.TrimSpace(os.Getenv("RAW_BUCKET"))
 	cfg.UserAgent = getEnvOrDefault("USER_AGENT", defaultUserAgent)
+	cfg.SearchEntrypointURL = strings.TrimSpace(os.Getenv("SEARCH_ENTRYPOINT_URL"))
 
 	if cfg.RawBucket == "" {
 		return cfg, fmt.Errorf("RAW_BUCKET is required")
 	}
 	if strings.TrimSpace(cfg.UserAgent) == "" {
 		return cfg, fmt.Errorf("USER_AGENT must be non-empty")
+	}
+	if cfg.SearchEntrypointURL != "" {
+		if err := validateEntrypoint(cfg.SearchEntrypointURL); err != nil {
+			return cfg, err
+		}
 	}
 
 	scrapeDate, err := resolveScrapeDate()
@@ -76,6 +84,17 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func validateEntrypoint(value string) error {
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil {
+		return fmt.Errorf("SEARCH_ENTRYPOINT_URL must be a valid URL: %w", err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("SEARCH_ENTRYPOINT_URL must include scheme and host")
+	}
+	return nil
 }
 
 func BuildOutputKey(prefix, scrapeDate, runID string) string {

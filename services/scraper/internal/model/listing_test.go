@@ -47,3 +47,22 @@ func TestListingSnapshotMarshal(t *testing.T) {
 		t.Fatalf("source_payload round-trip mismatch")
 	}
 }
+
+func TestCanonicalIdentityUsesAddressPostal(t *testing.T) {
+	snapshot := ListingSnapshot{
+		Address:         "123 Main St",
+		PostalCode:      "T2P 1A1",
+		SourceListingID: "L-100",
+	}
+
+	keyA := snapshot.CanonicalIdentity()
+	snapshot.SourceListingID = "L-200"
+	keyB := snapshot.CanonicalIdentity()
+
+	if keyA != keyB {
+		t.Fatalf("canonical identity should ignore listing id")
+	}
+	if keyA != "123 MAIN ST|T2P1A1" {
+		t.Fatalf("unexpected canonical identity: %s", keyA)
+	}
+}

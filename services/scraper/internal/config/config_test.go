@@ -29,6 +29,7 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		t.Setenv("SCRAPE_DATE", "")
 		t.Setenv("RUN_ID", "")
 		t.Setenv("DRY_RUN", "")
+		t.Setenv("SEARCH_ENTRYPOINT_URL", "")
 
 		cfg, err := Load()
 		if err != nil {
@@ -101,6 +102,16 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		}
 		if !cfg.DryRun {
 			t.Fatalf("expected dry run true")
+		}
+	})
+
+	t.Run("invalid entrypoint url", func(t *testing.T) {
+		t.Setenv("RAW_BUCKET", "bucket")
+		t.Setenv("SEARCH_ENTRYPOINT_URL", "not-a-url")
+
+		_, err := Load()
+		if err == nil {
+			t.Fatalf("expected error for invalid SEARCH_ENTRYPOINT_URL")
 		}
 	})
 }
