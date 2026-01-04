@@ -48,25 +48,25 @@ It does this by:
 ```mermaid
 flowchart LR
   subgraph Source
-    A[REALTOR.ca + Zolo.ca\n(daily scrape)] -->|JSONL| B[Scraper\n(once/day)]
+    A["REALTOR.ca and Zolo.ca<br/>(daily scrape)"] -->|JSONL| B["Scraper<br/>(once/day)"]
   end
 
   subgraph Storage
-    C[S3 RAW Bucket\n(raw/...)] -->|archive copy| V[S3 VAULT Bucket\n(vault/raw|normalized|errors)]
+    C["S3 RAW Bucket<br/>(raw/...)"] -->|archive copy| V["S3 VAULT Bucket<br/>(vault/raw, normalized, errors)"]
   end
 
   subgraph Events
-    C -->|ObjectCreated| Q[SQS Queue\nRAW_EVENTS_QUEUE]
+    C -->|ObjectCreated| Q["SQS Queue<br/>RAW_EVENTS_QUEUE"]
   end
 
   subgraph Processing
-    Q --> P[Parser (Go)\nSQS consumer]
+    Q --> P["Parser (Go)<br/>SQS consumer"]
     P -->|HEAD/GET raw| C
-    P -->|UPSERT listings\nINSERT price_history (event-only)\nLEDGER processed_files| D[(Postgres)]
-    P -->|PUT normalized/errors\nCOPY raw| V
+    P -->|UPSERT listings<br/>INSERT price_history (event-only)<br/>LEDGER processed_files| D[(Postgres)]
+    P -->|PUT normalized/errors<br/>COPY raw| V
   end
 
-  note1{{Note:\nS3 may emit s3:TestEvent\nParser must ignore}} --- Q
+  note1{{"Note:<br/>S3 may emit s3:TestEvent<br/>Parser must ignore"}} --- Q
 ```
 
 
