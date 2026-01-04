@@ -16,7 +16,7 @@ services:
     networks:
       - calgary_net
     healthcheck:
-      test: ["CMD", "bash", "-lc", "curl -sf http://localhost:4566/_localstack/health | grep -q '\"s3\": \"running\"'"]
+      test: ["CMD", "bash", "-lc", "curl -sf http://localhost:4566/_localstack/health | grep -Eq '\"s3\": \"(running|available)\"' && grep -Eq '\"sqs\": \"(running|available)\"'"]
       interval: 5s
       timeout: 3s
       retries: 30

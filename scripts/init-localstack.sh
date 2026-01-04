@@ -22,8 +22,8 @@ health_url="http://localhost:${LOCALSTACK_PORT}/_localstack/health"
 
 echo "Waiting for LocalStack to be ready..."
 until health="$(curl -sf "${health_url}")" && \
-  echo "${health}" | grep -q '"s3": "running"' && \
-  echo "${health}" | grep -q '"sqs": "running"'; do
+  echo "${health}" | grep -Eq '"s3": "(running|available)"' && \
+  echo "${health}" | grep -Eq '"sqs": "(running|available)"'; do
   sleep 1
 done
 

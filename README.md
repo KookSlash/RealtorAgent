@@ -10,7 +10,7 @@ This project helps you answer questions like:
 - “How long do properties stay on the market?” (derived client-side if needed)
 
 It does this by:
-1) **Scraping daily** listing snapshots (JSONL files) from REALTOR.ca (scraper to be added).
+1) **Scraping daily** listing snapshots (JSONL files) from REALTOR.ca (HTTP-first with optional browser mode) and Zolo.ca (HTTP-first).
 2) Writing raw snapshot files to S3 (LocalStack locally, AWS later).
 3) Triggering parsing via **S3 → SQS events**.
 4) Parsing + normalizing into Postgres:
@@ -31,6 +31,9 @@ It does this by:
   We write to `price_history` only when a **snapshot_hash changes** (URL is excluded to avoid noise).  
   A daily time series can be reconstructed client-side by forward-filling.
 
+- **Identity is computed in the parser**  
+  `property_key` is derived from normalized `address` + optional `unit` + optional `postal_code` (postal is not required).
+
 - **Raw bucket immutability by convention**  
   We do not move/delete raw objects after processing. Auditability comes from `processed_files` + the vault.
 
@@ -45,7 +48,7 @@ It does this by:
 ```mermaid
 flowchart LR
   subgraph Source
-    A[REALTOR.ca\n(daily scrape)] -->|JSONL| B[Scraper\n(once/day)]
+    A[REALTOR.ca + Zolo.ca\n(daily scrape)] -->|JSONL| B[Scraper\n(once/day)]
   end
 
   subgraph Storage
@@ -64,13 +67,14 @@ flowchart LR
   end
 
   note1{{Note:\nS3 may emit s3:TestEvent\nParser must ignore}} --- Q
+```
 
 
 ## Quickstart
 1) Follow prerequisites: docs/prerequisites.md
 2) Start infra:
-make infra-up
-make infra-status
+   - make infra-up
+   - make infra-status
 
 3) Initialize LocalStack:
    - ./scripts/init-localstack.sh
@@ -88,7 +92,7 @@ Dummy mode (uploads dummy JSONL to S3):
 - cd services/scraper
 - go run ./cmd/scraper
 
-Real HTML scrape (free, no paid APIs):
+REALTOR.ca HTML scrape (free, no paid APIs):
 - export SEARCH_ENTRYPOINT_URL=https://www.realtor.ca/ab/calgary/real-estate
 - export MAX_PAGES=20
 - export RATE_LIMIT_MS=500
@@ -112,7 +116,7 @@ Notes:
 - Zolo uses HTTP-first scraping with rel=next pagination; if blocked or zero records, the scraper errors unless `FORCE_UPLOAD_EMPTY=true`.
 
 ## Robot blocks
-If HTTP fetch yields tiny robot pages, switch to browser mode:
+If REALTOR.ca HTTP fetch yields tiny robot pages, switch to browser mode:
 - export FETCH_MODE=browser
 - go get github.com/playwright-community/playwright-go
 - go run github.com/playwright-community/playwright-go/cmd/playwright install chromium
@@ -125,6 +129,7 @@ Browser options:
 - `BROWSER_USER_AGENT` (optional; defaults to `USER_AGENT`)
 
 If browser mode still returns an interstitial with `ROBOTS NOINDEX`, the scraper returns `ErrBlockedByBotDefense` and skips upload unless `FORCE_UPLOAD_EMPTY=true`. Check `SCRAPER_SAVE_HTML_DIR` (page-*.html) and retry with `BROWSER_HEADLESS=false`.
+Note: Zolo currently uses HTTP-only fetching (no browser mode).
 
 ## Test scraper upload
 Run the LocalStack upload verification:
@@ -141,6 +146,10 @@ Run the integration tests against LocalStack + Postgres:
 - make infra-init
 - make db-migrate
 - ./scripts/test-parser.sh
+
+## End-to-end pipeline test (deterministic)
+Runs a full pipeline using the local fixture (no live scraping):
+- make test-e2e
 
 Notes:
 - Tests create and consume messages in the shared RAW_EVENTS_QUEUE.
