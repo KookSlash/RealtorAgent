@@ -34,31 +34,15 @@ func (s *JsonEmbeddedStrategy) TryExtract(ctx context.Context, html []byte, base
 	if !ok {
 		return nil, false, nil
 	}
+	return s.extractFromPayload(payload, baseURL, scrapedAt)
+}
 
-	var decoded any
-	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return nil, false, err
-	}
-
-	listings := findListingObjects(decoded)
-	if len(listings) == 0 {
+func (s *JsonEmbeddedStrategy) TryExtractPayload(ctx context.Context, payload []byte, baseURL string, scrapedAt time.Time) ([]model.ListingSnapshot, bool, error) {
+	_ = ctx
+	if len(payload) == 0 {
 		return nil, false, nil
 	}
-
-	records := make([]model.ListingSnapshot, 0, len(listings))
-	for _, listing := range listings {
-		record, ok := s.mapper(listing, baseURL, scrapedAt)
-		if !ok {
-			continue
-		}
-		records = append(records, record)
-	}
-
-	if len(records) == 0 {
-		return nil, false, nil
-	}
-
-	return records, true, nil
+	return s.extractFromPayload(payload, baseURL, scrapedAt)
 }
 
 func extractEmbeddedJSON(htmlBytes []byte) ([]byte, bool, error) {
@@ -83,6 +67,39 @@ func extractEmbeddedJSON(htmlBytes []byte) ([]byte, bool, error) {
 		return nil, false, nil
 	}
 	return []byte(text), true, nil
+}
+
+func (s *JsonEmbeddedStrategy) extractFromPayload(payload []byte, baseURL string, scrapedAt time.Time) ([]model.ListingSnapshot, bool, error) {
+	listings, err := extractListingMapsFromJSON(payload)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(listings) == 0 {
+		return nil, false, nil
+	}
+
+	records := make([]model.ListingSnapshot, 0, len(listings))
+	for _, listing := range listings {
+		record, ok := s.mapper(listing, baseURL, scrapedAt)
+		if !ok {
+			continue
+		}
+		records = append(records, record)
+	}
+
+	if len(records) == 0 {
+		return nil, false, nil
+	}
+
+	return records, true, nil
+}
+
+func extractListingMapsFromJSON(payload []byte) ([]map[string]any, error) {
+	var decoded any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return nil, err
+	}
+	return findListingObjects(decoded), nil
 }
 
 func findListingObjects(data any) []map[string]any {

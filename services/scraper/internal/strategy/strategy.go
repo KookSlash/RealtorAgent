@@ -18,3 +18,12 @@ type ExtractStrategy interface {
 		scrapedAt time.Time,
 	) (records []model.ListingSnapshot, matched bool, err error)
 }
+
+type PayloadExtractStrategy interface {
+	TryExtractPayload(
+		ctx context.Context,
+		payload []byte,
+		baseURL string,
+		scrapedAt time.Time,
+	) (records []model.ListingSnapshot, matched bool, err error)
+}

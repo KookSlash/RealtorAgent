@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,8 +16,14 @@ import (
 )
 
 type Page struct {
-	URL  string
-	HTML []byte
+	URL          string
+	HTML         []byte
+	CapturedJSON []byte
+}
+
+type fetchResult struct {
+	body     []byte
+	finalURL string
 }
 
 type NextPageResolver func(html []byte, baseURL string) string
@@ -31,13 +36,17 @@ type RealtorFetcher struct {
 	nextPageResolver NextPageResolver
 }
 
-func NewRealtorFetcher(cfg config.Config, client *http.Client) *RealtorFetcher {
+func NewRealtorFetcher(cfg config.Config, client *http.Client) (*RealtorFetcher, error) {
 	return NewRealtorFetcherWithResolver(cfg, client, nil)
 }
 
-func NewRealtorFetcherWithResolver(cfg config.Config, client *http.Client, resolver NextPageResolver) *RealtorFetcher {
+func NewRealtorFetcherWithResolver(cfg config.Config, client *http.Client, resolver NextPageResolver) (*RealtorFetcher, error) {
 	if client == nil {
-		client = &http.Client{Timeout: 20 * time.Second}
+		var err error
+		client, err = NewHardenedClient(cfg)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if resolver == nil {
 		resolver = discoverNextURL
@@ -48,7 +57,7 @@ func NewRealtorFetcherWithResolver(cfg config.Config, client *http.Client, resol
 		maxRetries:       2,
 		rateLimit:        time.Duration(cfg.RateLimitMs) * time.Millisecond,
 		nextPageResolver: resolver,
-	}
+	}, nil
 }
 
 func (f *RealtorFetcher) FetchAll(ctx context.Context) ([]Page, error) {
@@ -66,19 +75,34 @@ func (f *RealtorFetcher) FetchAll(ctx context.Context) ([]Page, error) {
 	visited := map[string]bool{}
 	current := entrypoint
 
+	if f.cfg.SeedCookies {
+		if err := f.seedCookies(ctx, entrypoint); err != nil {
+			return pages, err
+		}
+	}
+
 	for pageIndex := 0; pageIndex < maxPages; pageIndex++ {
 		if visited[current] {
 			break
 		}
 		visited[current] = true
 
-		htmlBytes, err := f.fetch(ctx, current)
+		result, err := f.fetch(ctx, current)
 		if err != nil {
 			return pages, err
 		}
-		pages = append(pages, Page{URL: current, HTML: htmlBytes})
+		pageURL := strings.TrimSpace(result.finalURL)
+		if pageURL == "" {
+			pageURL = current
+		}
+		if strings.TrimSpace(f.cfg.ScraperSaveHTMLDir) != "" {
+			if err := saveHTMLPage(f.cfg.ScraperSaveHTMLDir, pageIndex+1, pageURL, result.body); err != nil {
+				return pages, err
+			}
+		}
+		pages = append(pages, Page{URL: pageURL, HTML: result.body})
 
-		nextURL := f.nextPageResolver(htmlBytes, current)
+		nextURL := f.nextPageResolver(result.body, pageURL)
 		if nextURL == "" {
 			break
 		}
@@ -94,43 +118,66 @@ func (f *RealtorFetcher) FetchAll(ctx context.Context) ([]Page, error) {
 	return pages, nil
 }
 
-func (f *RealtorFetcher) fetch(ctx context.Context, targetURL string) ([]byte, error) {
+func (f *RealtorFetcher) fetch(ctx context.Context, targetURL string) (fetchResult, error) {
 	var lastErr error
 
 	for attempt := 0; attempt <= f.maxRetries; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
-		if err != nil {
-			return nil, err
+		result, retriable, err := f.fetchOnce(ctx, targetURL)
+		if err == nil {
+			return result, nil
 		}
-		req.Header.Set("User-Agent", f.cfg.UserAgent)
-
-		resp, err := f.client.Do(req)
-		if err != nil {
-			lastErr = err
-		} else {
-			defer resp.Body.Close()
-			if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
-				lastErr = fmt.Errorf("server error status %d", resp.StatusCode)
-			} else if resp.StatusCode != http.StatusOK {
-				return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
-			} else {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, err
-				}
-				return body, nil
-			}
+		if !retriable {
+			return fetchResult{}, err
 		}
+		lastErr = err
 
 		if attempt < f.maxRetries {
-			backoff := time.Duration(attempt+1) * 250 * time.Millisecond
-			if err := sleepWithContext(ctx, backoff); err != nil {
-				return nil, err
+			if err := sleepWithContext(ctx, retryBackoff(attempt)); err != nil {
+				return fetchResult{}, err
 			}
 		}
 	}
 
-	return nil, lastErr
+	return fetchResult{}, lastErr
+}
+
+func (f *RealtorFetcher) fetchOnce(ctx context.Context, targetURL string) (fetchResult, bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return fetchResult{}, false, err
+	}
+	applyBrowserHeaders(req, f.cfg)
+
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return fetchResult{}, shouldRetry(err, 0, f.cfg.RetryForbidden), err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		snippet := readBodySnippet(resp, maxSnippetBytes)
+		logNonOKResponse(resp, snippet)
+		statusErr := fmt.Errorf("unexpected status %d from %s", resp.StatusCode, resp.Request.URL.String())
+		return fetchResult{}, shouldRetry(nil, resp.StatusCode, f.cfg.RetryForbidden), statusErr
+	}
+
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return fetchResult{}, false, err
+	}
+	return fetchResult{body: body, finalURL: resp.Request.URL.String()}, false, nil
+}
+
+func (f *RealtorFetcher) seedCookies(ctx context.Context, entrypoint string) error {
+	seedURL := strings.TrimSpace(f.cfg.Referer)
+	if seedURL == "" {
+		seedURL = baseURLFromEntrypoint(entrypoint)
+	}
+	if seedURL == "" {
+		return fmt.Errorf("seed cookies: invalid seed url")
+	}
+	_, err := f.fetch(ctx, seedURL)
+	return err
 }
 
 func sleepWithContext(ctx context.Context, duration time.Duration) error {

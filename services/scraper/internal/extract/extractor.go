@@ -46,3 +46,25 @@ func (e *Extractor) Extract(ctx context.Context, html []byte, baseURL string, sc
 	}
 	return nil, "", ErrNoExtractorMatched
 }
+
+func (e *Extractor) ExtractWithPayload(ctx context.Context, html []byte, payload []byte, baseURL string, scrapedAt time.Time) ([]model.ListingSnapshot, string, error) {
+	if len(payload) > 0 {
+		for _, extractor := range e.strategies {
+			payloadExtractor, ok := extractor.(strategy.PayloadExtractStrategy)
+			if !ok {
+				continue
+			}
+			records, matched, err := payloadExtractor.TryExtractPayload(ctx, payload, baseURL, scrapedAt)
+			if err != nil {
+				if matched {
+					return nil, extractor.Name(), err
+				}
+				continue
+			}
+			if matched {
+				return records, extractor.Name(), nil
+			}
+		}
+	}
+	return e.Extract(ctx, html, baseURL, scrapedAt)
+}

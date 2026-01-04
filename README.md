@@ -95,9 +95,36 @@ Real HTML scrape (free, no paid APIs):
 - export USER_AGENT="RealtorAgentScraper/0.1"
 - go run ./cmd/scraper
 
+Zolo HTML scrape (HTTP-first):
+- export SCRAPER_STRATEGY=zolo_ca
+- export ZOLO_ENTRYPOINT_URL="https://www.zolo.ca/index.php?sarea=Calgary&filter=1"
+- export ZOLO_BASE_URL="https://www.zolo.ca" # optional
+- export MAX_PAGES=20
+- export RATE_LIMIT_MS=500
+- export USER_AGENT="RealtorAgentScraper/0.1"
+- go run ./cmd/scraper
+
 Notes:
 - REALTOR.ca exposes hash (`#`) pagination for client-side map views; the scraper ignores hash links and follows server-side pagination discovered from the bootstrap HTML.
 - Extraction is JSON-first (embedded `SEOLandingPageInitialResponse`) with DOM fallback when JSON is missing or empty.
+- If you get HTTP 403 during live scraping, the next step is headless browser mode.
+- Set `SCRAPER_SAVE_HTML_DIR` to save fetched HTML pages for debugging.
+- Zolo uses HTTP-first scraping with rel=next pagination; if blocked or zero records, the scraper errors unless `FORCE_UPLOAD_EMPTY=true`.
+
+## Robot blocks
+If HTTP fetch yields tiny robot pages, switch to browser mode:
+- export FETCH_MODE=browser
+- go get github.com/playwright-community/playwright-go
+- go run github.com/playwright-community/playwright-go/cmd/playwright install chromium
+- ./scripts/run-live-scrape.sh
+
+Browser options:
+- `BROWSER_HEADLESS=true|false`
+- `BROWSER_TIMEOUT_MS=30000`
+- `BROWSER_WAIT_MS=5000` (extra wait after network idle)
+- `BROWSER_USER_AGENT` (optional; defaults to `USER_AGENT`)
+
+If browser mode still returns an interstitial with `ROBOTS NOINDEX`, the scraper returns `ErrBlockedByBotDefense` and skips upload unless `FORCE_UPLOAD_EMPTY=true`. Check `SCRAPER_SAVE_HTML_DIR` (page-*.html) and retry with `BROWSER_HEADLESS=false`.
 
 ## Test scraper upload
 Run the LocalStack upload verification:

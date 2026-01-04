@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-const SourceRealtorCA = "REALTOR_CA"
+const (
+	SourceRealtorCA = "REALTOR_CA"
+	SourceZoloCA    = "ZOLO_CA"
+)
 
 type ListingSnapshot struct {
 	Source          string          `json:"source"`

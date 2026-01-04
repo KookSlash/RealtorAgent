@@ -16,6 +16,8 @@ func TestScraperProducesParserCompatibleJSONL(t *testing.T) {
 	t.Setenv("SCRAPE_DATE", "2025-01-01")
 	t.Setenv("RUN_ID", "20250101T120000Z")
 	t.Setenv("OUTPUT_KEY_PREFIX", "raw/realtorca")
+	t.Setenv("FETCH_MODE", "http")
+	t.Setenv("SCRAPER_STRATEGY", "realtor_ca")
 
 	cfg, err := config.Load()
 	if err != nil {

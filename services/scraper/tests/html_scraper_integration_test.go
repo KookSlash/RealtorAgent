@@ -28,6 +28,9 @@ func TestHTMLScraperPaginationIntegration(t *testing.T) {
 	t.Setenv("RATE_LIMIT_MS", "0")
 	t.Setenv("MAX_PAGES", "5")
 	t.Setenv("USER_AGENT", "TestAgent/1.0")
+	t.Setenv("SEED_COOKIES", "false")
+	t.Setenv("FETCH_MODE", "http")
+	t.Setenv("SCRAPER_STRATEGY", "realtor_ca")
 
 	basePage := readFixture(t, "../testdata/calgary_page1.html")
 	page1 := withNextPointer(basePage, "/page2")
@@ -81,6 +84,9 @@ func TestHTMLScraperDoesNotAbortOnEmptyPage(t *testing.T) {
 	t.Setenv("RATE_LIMIT_MS", "0")
 	t.Setenv("MAX_PAGES", "5")
 	t.Setenv("USER_AGENT", "TestAgent/1.0")
+	t.Setenv("SEED_COOKIES", "false")
+	t.Setenv("FETCH_MODE", "http")
+	t.Setenv("SCRAPER_STRATEGY", "realtor_ca")
 
 	basePage := readFixture(t, "../testdata/calgary_page1.html")
 	page1 := withNextPointer(basePage, "/page2")
@@ -147,7 +153,10 @@ type scrapeResult struct {
 func runScrapeWithFetcher(t *testing.T, cfg config.Config, resolver fetch.NextPageResolver, scrapedAt time.Time) scrapeResult {
 	t.Helper()
 
-	fetcher := fetch.NewRealtorFetcherWithResolver(cfg, nil, resolver)
+	fetcher, err := fetch.NewRealtorFetcherWithResolver(cfg, nil, resolver)
+	if err != nil {
+		t.Fatalf("new fetcher: %v", err)
+	}
 	pages, err := fetcher.FetchAll(context.Background())
 	if err != nil {
 		t.Fatalf("fetch pages: %v", err)
@@ -164,7 +173,7 @@ func runScrapeWithFetcher(t *testing.T, cfg config.Config, resolver fetch.NextPa
 
 	count := 0
 	for _, page := range pages {
-		records, _, err := extractor.Extract(context.Background(), page.HTML, page.URL, scrapedAt)
+		records, _, err := extractor.ExtractWithPayload(context.Background(), page.HTML, page.CapturedJSON, page.URL, scrapedAt)
 		if err != nil {
 			continue
 		}
