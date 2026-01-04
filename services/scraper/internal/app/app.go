@@ -11,7 +11,7 @@ import (
 )
 
 func GenerateDummySnapshot(cfg config.Config) (string, string, int, error) {
-	outputKey := config.BuildOutputKey(cfg.OutputKeyPrefix, cfg.ScrapeDate, cfg.RunID)
+	outputKey := config.BuildOutputKeyFromParts(cfg.SourceID, cfg.ScrapeDate, cfg.RunID)
 
 	file, err := os.CreateTemp("", "scraper-*.jsonl")
 	if err != nil {

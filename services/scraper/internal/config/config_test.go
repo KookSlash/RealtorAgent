@@ -2,19 +2,39 @@ package config
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestBuildOutputKey(t *testing.T) {
-	key := BuildOutputKey("raw/realtorca", "2025-01-01", "20250101T000000Z")
-	if key != "raw/realtorca/2025-01-01/run-20250101T000000Z.jsonl" {
-		t.Fatalf("unexpected key: %s", key)
+func TestOutputKey_ZoloStrategyUsesZoloPrefix(t *testing.T) {
+	key := BuildOutputKeyFromParts(sourceIDZolo, "2026-01-04", "20260104T171702Z")
+	if !strings.HasPrefix(key, "raw/zolo/") {
+		t.Fatalf("expected zolo prefix, got %s", key)
 	}
+}
 
-	key = BuildOutputKey("raw/realtorca/", "2025-01-01", "run-1")
-	if key != "raw/realtorca/2025-01-01/run-run-1.jsonl" {
-		t.Fatalf("unexpected key with trailing slash: %s", key)
+func TestOutputKey_RealtorStrategyUsesRealtorPrefix(t *testing.T) {
+	key := BuildOutputKeyFromParts(sourceIDRealtor, "2026-01-04", "20260104T171702Z")
+	if !strings.HasPrefix(key, "raw/realtorca/") {
+		t.Fatalf("expected realtor prefix, got %s", key)
+	}
+}
+
+func TestOutputKey_DatePartitionIsUTC_YYYY_MM_DD(t *testing.T) {
+	ts := time.Date(2026, 1, 4, 23, 30, 0, 0, time.FixedZone("PST", -8*60*60))
+	key := BuildOutputKey(sourceIDZolo, ts)
+	if !strings.Contains(key, "/2026-01-05/") {
+		t.Fatalf("expected UTC date partition, got %s", key)
+	}
+}
+
+func TestOutputKey_StableFormat(t *testing.T) {
+	ts := time.Date(2026, 1, 4, 17, 17, 2, 0, time.UTC)
+	key := BuildOutputKey(sourceIDZolo, ts)
+	re := regexp.MustCompile(`^raw/zolo/\d{4}-\d{2}-\d{2}/run-\d{8}T\d{6}Z\.jsonl$`)
+	if !re.MatchString(key) {
+		t.Fatalf("unexpected key format: %s", key)
 	}
 }
 
@@ -22,7 +42,6 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		t.Setenv("RAW_BUCKET", "bucket")
 		t.Setenv("AWS_REGION", "")
-		t.Setenv("OUTPUT_KEY_PREFIX", defaultOutputKeyPrefix)
 		t.Setenv("USER_AGENT", "")
 		t.Setenv("RATE_LIMIT_MS", "")
 		t.Setenv("MAX_PAGES", "")
@@ -50,9 +69,6 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		if cfg.AWSRegion != defaultRegion {
 			t.Fatalf("expected default region %s, got %s", defaultRegion, cfg.AWSRegion)
 		}
-		if cfg.OutputKeyPrefix != defaultOutputKeyPrefix {
-			t.Fatalf("expected default prefix %s, got %s", defaultOutputKeyPrefix, cfg.OutputKeyPrefix)
-		}
 		if cfg.UserAgent == "" {
 			t.Fatalf("expected non-empty user agent")
 		}
@@ -61,6 +77,9 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		}
 		if cfg.ScraperStrategy != defaultScraperStrategy {
 			t.Fatalf("expected default scraper strategy %s, got %s", defaultScraperStrategy, cfg.ScraperStrategy)
+		}
+		if cfg.SourceID != sourceIDRealtor {
+			t.Fatalf("expected default source id %s, got %s", sourceIDRealtor, cfg.SourceID)
 		}
 		if cfg.ZoloBaseURL != defaultZoloBaseURL {
 			t.Fatalf("expected default zolo base url %s, got %s", defaultZoloBaseURL, cfg.ZoloBaseURL)
@@ -116,29 +135,8 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid prefix", func(t *testing.T) {
-		t.Setenv("RAW_BUCKET", "bucket")
-		t.Setenv("OUTPUT_KEY_PREFIX", "/raw/realtorca")
-
-		_, err := Load()
-		if err == nil {
-			t.Fatalf("expected error for invalid OUTPUT_KEY_PREFIX")
-		}
-	})
-
-	t.Run("empty prefix", func(t *testing.T) {
-		t.Setenv("RAW_BUCKET", "bucket")
-		t.Setenv("OUTPUT_KEY_PREFIX", " ")
-
-		_, err := Load()
-		if err == nil {
-			t.Fatalf("expected error for empty OUTPUT_KEY_PREFIX")
-		}
-	})
-
 	t.Run("dry run true", func(t *testing.T) {
 		t.Setenv("RAW_BUCKET", "bucket")
-		t.Setenv("OUTPUT_KEY_PREFIX", defaultOutputKeyPrefix)
 		t.Setenv("DRY_RUN", "true")
 
 		cfg, err := Load()
@@ -152,6 +150,18 @@ func TestConfigDefaultsAndValidation(t *testing.T) {
 
 	t.Run("invalid entrypoint url", func(t *testing.T) {
 		t.Setenv("RAW_BUCKET", "bucket")
+		t.Setenv("SEARCH_ENTRYPOINT_URL", "not-a-url")
+
+		_, err := Load()
+		if err == nil {
+			t.Fatalf("expected error for invalid SEARCH_ENTRYPOINT_URL")
+		}
+	})
+
+	t.Run("invalid entrypoint url with zolo strategy", func(t *testing.T) {
+		t.Setenv("RAW_BUCKET", "bucket")
+		t.Setenv("SCRAPER_STRATEGY", "zolo_ca")
+		t.Setenv("ZOLO_ENTRYPOINT_URL", "https://www.zolo.ca/index.php?sarea=Calgary&filter=1")
 		t.Setenv("SEARCH_ENTRYPOINT_URL", "not-a-url")
 
 		_, err := Load()

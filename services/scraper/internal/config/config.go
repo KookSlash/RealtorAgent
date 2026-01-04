@@ -11,7 +11,6 @@ import (
 
 const (
 	defaultRegion          = "us-west-2"
-	defaultOutputKeyPrefix = "raw/realtorca"
 	defaultUserAgent       = "RealtorAgentScraper/0.1"
 	defaultRateLimitMs     = 500
 	defaultMaxPages        = 20
@@ -21,6 +20,8 @@ const (
 	defaultFetchMode       = "http"
 	defaultBrowserTimeout  = 30000
 	defaultBrowserWaitMs   = 5000
+	sourceIDRealtor        = "realtorca"
+	sourceIDZolo           = "zolo"
 )
 
 type Config struct {
@@ -29,7 +30,7 @@ type Config struct {
 	RawBucket           string
 	ScrapeDate          string
 	RunID               string
-	OutputKeyPrefix     string
+	SourceID            string
 	UserAgent           string
 	Referer             string
 	ScraperStrategy     string
@@ -80,6 +81,11 @@ func Load() (Config, error) {
 	if err := validateScraperStrategy(cfg.ScraperStrategy); err != nil {
 		return cfg, err
 	}
+	sourceID, err := sourceIDForStrategy(cfg.ScraperStrategy)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.SourceID = sourceID
 	if err := validateEntrypoints(cfg); err != nil {
 		return cfg, err
 	}
@@ -98,12 +104,6 @@ func Load() (Config, error) {
 		runID = time.Now().UTC().Format("20060102T150405Z")
 	}
 	cfg.RunID = runID
-
-	prefix, err := resolvePrefix()
-	if err != nil {
-		return cfg, err
-	}
-	cfg.OutputKeyPrefix = prefix
 
 	cfg.RateLimitMs, err = resolveIntEnv("RATE_LIMIT_MS", defaultRateLimitMs)
 	if err != nil {
@@ -152,15 +152,16 @@ func validateEntrypoint(value string) error {
 }
 
 func validateScraperStrategy(value string) error {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "realtor_ca", "zolo_ca":
-		return nil
-	default:
-		return fmt.Errorf("SCRAPER_STRATEGY must be realtor_ca or zolo_ca")
-	}
+	_, err := sourceIDForStrategy(value)
+	return err
 }
 
 func validateEntrypoints(cfg Config) error {
+	if strings.TrimSpace(cfg.SearchEntrypointURL) != "" {
+		if err := validateURL(cfg.SearchEntrypointURL, "SEARCH_ENTRYPOINT_URL"); err != nil {
+			return err
+		}
+	}
 	switch strings.ToLower(strings.TrimSpace(cfg.ScraperStrategy)) {
 	case "zolo_ca":
 		if strings.TrimSpace(cfg.ZoloEntrypointURL) == "" {
@@ -204,9 +205,16 @@ func validateFetchMode(mode string) error {
 	}
 }
 
-func BuildOutputKey(prefix, scrapeDate, runID string) string {
-	cleanPrefix := strings.TrimSuffix(prefix, "/")
-	return fmt.Sprintf("%s/%s/run-%s.jsonl", cleanPrefix, scrapeDate, runID)
+func BuildOutputKey(sourceID string, t time.Time) string {
+	t = t.UTC()
+	return BuildOutputKeyFromParts(sourceID, t.Format("2006-01-02"), t.Format("20060102T150405Z"))
+}
+
+func BuildOutputKeyFromParts(sourceID, scrapeDate, runID string) string {
+	cleanSourceID := sanitizeSourceID(sourceID)
+	cleanDate := strings.TrimSpace(scrapeDate)
+	cleanRunID := strings.TrimSpace(runID)
+	return fmt.Sprintf("raw/%s/%s/run-%s.jsonl", cleanSourceID, cleanDate, cleanRunID)
 }
 
 func resolveScrapeDate() (string, error) {
@@ -217,23 +225,6 @@ func resolveScrapeDate() (string, error) {
 	}
 	if _, err := time.Parse("2006-01-02", value); err != nil {
 		return "", fmt.Errorf("SCRAPE_DATE must be YYYY-MM-DD: %w", err)
-	}
-	return value, nil
-}
-
-func resolvePrefix() (string, error) {
-	value, ok := os.LookupEnv("OUTPUT_KEY_PREFIX")
-	if ok {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			return "", fmt.Errorf("OUTPUT_KEY_PREFIX must not be empty")
-		}
-	} else {
-		value = defaultOutputKeyPrefix
-	}
-
-	if strings.HasPrefix(value, "/") {
-		return "", fmt.Errorf("OUTPUT_KEY_PREFIX must not start with '/'")
 	}
 	return value, nil
 }
@@ -292,4 +283,40 @@ func resolveScraperStrategy() string {
 		return defaultScraperStrategy
 	}
 	return strings.ToLower(value)
+}
+
+func sourceIDForStrategy(strategy string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(strategy)) {
+	case "realtor_ca":
+		return sourceIDRealtor, nil
+	case "zolo_ca":
+		return sourceIDZolo, nil
+	default:
+		return "", fmt.Errorf("SCRAPER_STRATEGY must be realtor_ca or zolo_ca")
+	}
+}
+
+func sanitizeSourceID(sourceID string) string {
+	lower := strings.ToLower(strings.TrimSpace(sourceID))
+	if lower == "" {
+		return "unknown"
+	}
+	var builder strings.Builder
+	for _, r := range lower {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == '-' || r == '_':
+			builder.WriteRune(r)
+		default:
+			builder.WriteRune('-')
+		}
+	}
+	cleaned := strings.Trim(builder.String(), "-")
+	if cleaned == "" {
+		return "unknown"
+	}
+	return cleaned
 }

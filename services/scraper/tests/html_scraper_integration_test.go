@@ -22,7 +22,6 @@ import (
 
 func TestHTMLScraperPaginationIntegration(t *testing.T) {
 	t.Setenv("RAW_BUCKET", "test-bucket")
-	t.Setenv("OUTPUT_KEY_PREFIX", "raw/realtorca")
 	t.Setenv("SCRAPE_DATE", "2025-01-01")
 	t.Setenv("RUN_ID", "20250101T000000Z")
 	t.Setenv("RATE_LIMIT_MS", "0")
@@ -78,7 +77,6 @@ func TestHTMLScraperPaginationIntegration(t *testing.T) {
 
 func TestHTMLScraperDoesNotAbortOnEmptyPage(t *testing.T) {
 	t.Setenv("RAW_BUCKET", "test-bucket")
-	t.Setenv("OUTPUT_KEY_PREFIX", "raw/realtorca")
 	t.Setenv("SCRAPE_DATE", "2025-01-01")
 	t.Setenv("RUN_ID", "20250101T000000Z")
 	t.Setenv("RATE_LIMIT_MS", "0")

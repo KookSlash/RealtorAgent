@@ -44,7 +44,7 @@ func GenerateSnapshot(ctx context.Context, cfg config.Config) (RunResult, error)
 }
 
 func generateEntrypointSnapshot(ctx context.Context, cfg config.Config) (RunResult, error) {
-	outputKey := config.BuildOutputKey(cfg.OutputKeyPrefix, cfg.ScrapeDate, cfg.RunID)
+	outputKey := config.BuildOutputKeyFromParts(cfg.SourceID, cfg.ScrapeDate, cfg.RunID)
 
 	file, err := os.CreateTemp("", "scraper-*.jsonl")
 	if err != nil {
@@ -99,7 +99,7 @@ func generateEntrypointSnapshot(ctx context.Context, cfg config.Config) (RunResu
 }
 
 func generateZoloSnapshot(ctx context.Context, cfg config.Config) (RunResult, error) {
-	outputKey := config.BuildOutputKey(cfg.OutputKeyPrefix, cfg.ScrapeDate, cfg.RunID)
+	outputKey := config.BuildOutputKeyFromParts(cfg.SourceID, cfg.ScrapeDate, cfg.RunID)
 
 	file, err := os.CreateTemp("", "scraper-zolo-*.jsonl")
 	if err != nil {
