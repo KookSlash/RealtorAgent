@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -234,6 +236,16 @@ func countHistoryForKey(t *testing.T, env *testEnv, key string) int {
 	return count
 }
 
+func readFixture(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join("testdata", name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read fixture %s failed: %v", path, err)
+	}
+	return string(data)
+}
+
 func getETag(t *testing.T, env *testEnv, bucket, key string) string {
 	ctx := context.Background()
 	out, err := env.s3Client.HeadObject(ctx, &s3.HeadObjectInput{
@@ -406,6 +418,88 @@ func TestIdempotency(t *testing.T) {
 
 	if processedAfter != processedCount || listingsAfter != listingsCount || historyAfter != historyCount {
 		t.Fatalf("idempotency violated")
+	}
+}
+
+func TestZoloSourceIdentityAllowsEmptyPostal(t *testing.T) {
+	env := newTestEnv(t)
+	drainQueue(t, env)
+
+	contents := readFixture(t, "zolo_identity.jsonl")
+
+	dateStr := time.Now().UTC().Format("2006-01-02")
+	key := fmt.Sprintf("raw/zolo/%s/run-test-zolo-%d.jsonl", dateStr, time.Now().UnixNano())
+
+	putObject(t, env, key, contents)
+	waitForMessages(t, env)
+
+	if err := runProcessorOnce(t, env); err != nil {
+		t.Fatalf("processor failed: %v", err)
+	}
+
+	etag := getETag(t, env, env.cfg.RawBucket, key)
+	if count := countProcessedFile(t, env, env.cfg.RawBucket, key, etag); count != 1 {
+		t.Fatalf("expected processed_files row, got %d", count)
+	}
+
+	keys := []string{
+		normalize.PropertyKey("111 First Street SW, Calgary, AB", "", ""),
+		normalize.PropertyKey("1201-222 Second Ave NE, Calgary, AB", "", ""),
+		normalize.PropertyKey("333 Third Blvd NW, Calgary, AB", "T2X 1Y2", ""),
+	}
+	listingsCount := countListingsByKeys(t, env, keys)
+	historyCount := countHistoryByKeys(t, env, keys)
+	if listingsCount != len(keys) {
+		t.Fatalf("expected %d listings, got %d", len(keys), listingsCount)
+	}
+	if historyCount != len(keys) {
+		t.Fatalf("expected %d price_history rows, got %d", len(keys), historyCount)
+	}
+
+	vaultRaw := fmt.Sprintf("vault/raw/%s", key)
+	vaultNorm := fmt.Sprintf("vault/normalized/%s.normalized.jsonl", key)
+	vaultErr := fmt.Sprintf("vault/errors/%s.errors.jsonl", key)
+
+	if _, err := env.s3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		Bucket: aws.String(env.cfg.VaultBucket),
+		Key:    aws.String(vaultRaw),
+	}); err != nil {
+		t.Fatalf("vault raw missing: %v", err)
+	}
+	if _, err := env.s3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		Bucket: aws.String(env.cfg.VaultBucket),
+		Key:    aws.String(vaultNorm),
+	}); err != nil {
+		t.Fatalf("vault normalized missing: %v", err)
+	}
+	if _, err := env.s3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		Bucket: aws.String(env.cfg.VaultBucket),
+		Key:    aws.String(vaultErr),
+	}); err != nil {
+		t.Fatalf("vault errors missing: %v", err)
+	}
+
+	normLines := getObjectLines(t, env, env.cfg.VaultBucket, vaultNorm)
+	if len(normLines) != 3 {
+		t.Fatalf("expected 3 normalized lines, got %d", len(normLines))
+	}
+	errLines := getObjectLines(t, env, env.cfg.VaultBucket, vaultErr)
+	if len(errLines) != 0 {
+		t.Fatalf("expected 0 error lines, got %d", len(errLines))
+	}
+
+	sendS3Event(t, env, env.cfg.RawBucket, key)
+	waitForMessages(t, env)
+	if err := runProcessorOnce(t, env); err != nil {
+		t.Fatalf("processor failed on rerun: %v", err)
+	}
+
+	processedAfter := countProcessedFile(t, env, env.cfg.RawBucket, key, etag)
+	listingsAfter := countListingsByKeys(t, env, keys)
+	historyAfter := countHistoryByKeys(t, env, keys)
+
+	if processedAfter != 1 || listingsAfter != listingsCount || historyAfter != historyCount {
+		t.Fatalf("idempotency violated for zolo source identity")
 	}
 }
 

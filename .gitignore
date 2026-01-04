@@ -2,3 +2,30 @@
 # Local env
 infra/.env
 .env
+
+# Build and runtime artifacts
+/tmp/
+/bin/
+/dist/
+/build/
+/coverage/
+coverage.out
+coverage*.out
+*.test
+*.out
+*.log
+*.pid
+*.prof
+*.pprof
+
+# Go binaries
+*.exe
+*.dll
+*.so
+*.dylib
+services/scraper/scraper
+
+# OS/editor artifacts
+.DS_Store
+.idea/
+.vscode/

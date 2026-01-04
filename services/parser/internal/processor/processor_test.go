@@ -70,6 +70,30 @@ func TestNormalizeLineSnapshotHashIgnoresURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeLineAllowsEmptyPostalForIdentity(t *testing.T) {
+	p := &Processor{}
+	line := `{"source":"ZOLO_CA","source_listing_id":"Z-100","address":"123 Zolo St, Calgary, AB","postal_code":"","property_type":"House","price":500000,"url":"http://example.com/z1","scraped_at":"2025-01-01T00:00:00Z"}`
+
+	record, errRec := p.normalizeLine(line, 1)
+	if errRec != nil {
+		t.Fatalf("unexpected error: %v", errRec)
+	}
+
+	if record.PropertyKey == "" || len(record.PropertyKey) != 64 {
+		t.Fatalf("expected non-empty property key")
+	}
+	expectedKey := normalize.PropertyKey("123 Zolo St, Calgary, AB", "", "")
+	if record.PropertyKey != expectedKey {
+		t.Fatalf("expected property key to be derived from address fields only")
+	}
+	if record.PostalCode != "" {
+		t.Fatalf("expected empty postal_code to be preserved")
+	}
+	if record.SourceListingID == nil || *record.SourceListingID != "Z-100" {
+		t.Fatalf("expected source_listing_id to be set from source_listing_id field")
+	}
+}
+
 func TestNormalizeLineErrors(t *testing.T) {
 	p := &Processor{}
 	cases := []struct {

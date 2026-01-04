@@ -315,7 +315,12 @@ func (p *Processor) normalizeLine(line string, lineNumber int) (*model.Normalize
 	address := getString(payload, "address")
 	postal := getString(payload, "postal_code")
 	unit := getString(payload, "unit")
-	if strings.TrimSpace(address) == "" || strings.TrimSpace(postal) == "" {
+	sourceListingID := getString(payload, "source_listing_id")
+	if strings.TrimSpace(sourceListingID) == "" {
+		sourceListingID = getString(payload, "listing_id")
+	}
+
+	if strings.TrimSpace(address) == "" {
 		return nil, &model.ErrorRecord{LineNumber: lineNumber, Reason: "missing_identity_fields", RawLine: line}
 	}
 
@@ -337,7 +342,6 @@ func (p *Processor) normalizeLine(line string, lineNumber int) (*model.Normalize
 	lonVal, _ := getFloatPtr(payload, "lon")
 
 	propertyType := normalize.NormalizePropertyType(getString(payload, "property_type"))
-	sourceListingID := getString(payload, "listing_id")
 	url := getString(payload, "url")
 
 	propertyKey := normalize.PropertyKey(address, postal, unit)
