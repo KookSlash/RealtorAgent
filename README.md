@@ -1,6 +1,6 @@
 # Calgary Real Estate Monitor
 
-A local-first, AWS-compatible pipeline to **observe the Calgary real-estate market over time** by ingesting daily REALTOR.ca snapshots, deduplicating physical properties, and tracking meaningful changes.
+A local-first, AWS-compatible pipeline to **observe the Calgary real-estate market over time** by ingesting daily REALTOR.ca and Zolo.ca snapshots, deduplicating physical properties, and tracking meaningful changes.
 
 ## What this does (functional)
 
@@ -48,25 +48,25 @@ It does this by:
 ```mermaid
 flowchart LR
   subgraph Source
-    A["REALTOR.ca and Zolo.ca<br/>(daily scrape)"] -->|JSONL| B["Scraper<br/>(once/day)"]
+    A["REALTOR.ca and Zolo.ca daily scrape"] -->|JSONL| B["Scraper once per day"]
   end
 
   subgraph Storage
-    C["S3 RAW Bucket<br/>(raw/...)"] -->|archive copy| V["S3 VAULT Bucket<br/>(vault/raw, normalized, errors)"]
+    C["S3 RAW Bucket raw prefix"] -->|archive copy| V["S3 VAULT Bucket vault raw normalized errors"]
   end
 
   subgraph Events
-    C -->|ObjectCreated| Q["SQS Queue<br/>RAW_EVENTS_QUEUE"]
+    C -->|ObjectCreated| Q["SQS Queue RAW EVENTS QUEUE"]
   end
 
   subgraph Processing
-    Q --> P["Parser (Go)<br/>SQS consumer"]
+    Q --> P["Parser Go SQS consumer"]
     P -->|HEAD/GET raw| C
-    P -->|UPSERT listings<br/>INSERT price_history (event-only)<br/>LEDGER processed_files| D[(Postgres)]
-    P -->|PUT normalized/errors<br/>COPY raw| V
+    P -->|UPSERT listings and INSERT price history event only and LEDGER processed files| D[(Postgres)]
+    P -->|PUT normalized and errors and COPY raw| V
   end
 
-  note1{{"Note:<br/>S3 may emit s3:TestEvent<br/>Parser must ignore"}} --- Q
+  note1{{"Note S3 may emit s3 TestEvent Parser must ignore"}} --- Q
 ```
 
 
