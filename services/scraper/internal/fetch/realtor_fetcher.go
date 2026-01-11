@@ -67,9 +67,7 @@ func (f *RealtorFetcher) FetchAll(ctx context.Context) ([]Page, error) {
 	}
 
 	maxPages := f.cfg.MaxPages
-	if maxPages <= 0 {
-		maxPages = 1
-	}
+	unlimited := maxPages <= 0
 
 	pages := []Page{}
 	visited := map[string]bool{}
@@ -81,7 +79,7 @@ func (f *RealtorFetcher) FetchAll(ctx context.Context) ([]Page, error) {
 		}
 	}
 
-	for pageIndex := 0; pageIndex < maxPages; pageIndex++ {
+	for pageIndex := 0; unlimited || pageIndex < maxPages; pageIndex++ {
 		if visited[current] {
 			break
 		}

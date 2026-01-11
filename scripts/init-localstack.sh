@@ -64,9 +64,7 @@ QUEUE_ARN="$(awslocal sqs get-queue-attributes \
   --query 'Attributes.QueueArn' --output text)"
 
 echo "Configuring S3 -> SQS notifications on raw bucket..."
-notif_file="$(mktemp)"
-trap 'rm -f "${notif_file}"' EXIT
-cat > "${notif_file}" <<JSON
+notif_json="$(cat <<JSON
 {
   "QueueConfigurations": [
     {
@@ -83,10 +81,11 @@ cat > "${notif_file}" <<JSON
   ]
 }
 JSON
+)"
 
 awslocal s3api put-bucket-notification-configuration \
   --bucket "${RAW_BUCKET}" \
-  --notification-configuration "file://${notif_file}"
+  --notification-configuration "${notif_json}"
 
 echo "Init complete."
 echo "RAW_BUCKET=${RAW_BUCKET}"

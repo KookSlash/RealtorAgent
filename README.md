@@ -113,6 +113,7 @@ Notes:
 - Extraction is JSON-first (embedded `SEOLandingPageInitialResponse`) with DOM fallback when JSON is missing or empty.
 - If you get HTTP 403 during live scraping, the next step is headless browser mode.
 - Set `SCRAPER_SAVE_HTML_DIR` to save fetched HTML pages for debugging.
+- Set `MAX_PAGES=0` to follow pagination until exhausted.
 - Zolo uses HTTP-first scraping with rel=next pagination; if blocked or zero records, the scraper errors unless `FORCE_UPLOAD_EMPTY=true`.
 
 ## Robot blocks
@@ -154,6 +155,14 @@ Runs a full pipeline using the local fixture (no live scraping):
 Notes:
 - Tests create and consume messages in the shared RAW_EVENTS_QUEUE.
 - Consumers must ignore initial s3:TestEvent messages.
+
+## Manual local run (Zolo)
+One-shot manual run (live scrape + parser + verification):
+- make infra-up
+- make infra-init
+- make run-zolo
+
+Note: `make run-zolo` is the one-shot command; the infra steps are shown for clarity.
 
 ## Unit tests
 Run fast, hermetic unit tests locally:

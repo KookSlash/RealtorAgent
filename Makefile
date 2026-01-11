@@ -1,4 +1,4 @@
-.PHONY: infra-up infra-init db-migrate infra-status test-parser test-e2e diag-localstack diag-localstack-test
+.PHONY: infra-up infra-init db-migrate infra-status test-parser test-e2e test-e2e-zolo run-zolo diag-localstack diag-localstack-test
 
 infra-up:
 	docker compose -f infra/docker-compose.yml up -d
@@ -17,6 +17,12 @@ test-parser:
 
 test-e2e:
 	./scripts/test-e2e-zolo.sh
+
+test-e2e-zolo:
+	./scripts/test-e2e-zolo.sh
+
+run-zolo:
+	bash scripts/run-zolo-manual.sh
 
 diag-localstack:
 	./scripts/diag-localstack.sh

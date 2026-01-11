@@ -43,9 +43,7 @@ func (b *BrowserFetcher) FetchAll(ctx context.Context) ([]Page, error) {
 	}
 
 	maxPages := b.cfg.MaxPages
-	if maxPages <= 0 {
-		maxPages = 1
-	}
+	unlimited := maxPages <= 0
 
 	pw, err := playwright.Run()
 	if err != nil {
@@ -117,7 +115,7 @@ func (b *BrowserFetcher) FetchAll(ctx context.Context) ([]Page, error) {
 	var previousURL string
 	var previousHTML string
 
-	for pageIndex := 0; pageIndex < maxPages; pageIndex++ {
+	for pageIndex := 0; unlimited || pageIndex < maxPages; pageIndex++ {
 		if err := ctx.Err(); err != nil {
 			return pages, err
 		}
