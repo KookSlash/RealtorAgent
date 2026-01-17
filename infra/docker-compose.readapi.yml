@@ -1,0 +1,21 @@
+services:
+  readapi:
+    build:
+      context: ../services/readapi
+      dockerfile: Dockerfile
+    container_name: readapi
+    ports:
+      - "8090:8080"
+    env_file:
+      - .env
+    environment:
+      - PORT=8080
+      - DB_ENABLED=true
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_SSLMODE=disable
+      - READAPI_CORS_ALLOW_ORIGIN=*
+    depends_on:
+      - postgres
+    networks:
+      - calgary_net
