@@ -1,4 +1,4 @@
-.PHONY: infra-up infra-init db-migrate infra-status test-parser test-e2e test-e2e-zolo run-zolo diag-localstack diag-localstack-test app-smoke readapi-test e2e-proof run-local run run-dev scrape nuke-test nuke-dev
+.PHONY: infra-up infra-init db-migrate infra-status test-parser test-e2e test-e2e-zolo run-zolo diag-localstack diag-localstack-test app-smoke readapi readapi-test test-readapi-integration e2e-proof run-local run run-dev scrape nuke-test nuke-dev
 
 STACK ?= run
 ifeq ($(STACK),run)
@@ -37,6 +37,14 @@ app-smoke:
 
 readapi-test:
 	cd services/readapi && go test ./...
+
+test-readapi-integration:
+	mkdir -p tmp/go-cache tmp/go-tmp
+	bash scripts/ensure-it-db.sh
+	DB_ENABLED=true POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 POSTGRES_DB=realestate_it POSTGRES_USER=realestate POSTGRES_PASSWORD=realestate GOCACHE=$$PWD/tmp/go-cache GOTMPDIR=$$PWD/tmp/go-tmp go -C services/readapi test -tags=integration ./... -count=1
+
+readapi:
+	bash scripts/run-readapi.sh
 
 e2e-proof:
 	STACK=test bash scripts/e2e-proof.sh

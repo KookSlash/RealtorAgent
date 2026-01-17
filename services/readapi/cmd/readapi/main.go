@@ -13,8 +13,8 @@ import (
 	"github.com/sylvain/realtoragent/services/readapi/internal/config"
 	"github.com/sylvain/realtoragent/services/readapi/internal/db"
 	"github.com/sylvain/realtoragent/services/readapi/internal/httpapi"
-	"github.com/sylvain/realtoragent/services/readapi/internal/listings"
-	"github.com/sylvain/realtoragent/services/readapi/internal/listings/postgres"
+	"github.com/sylvain/realtoragent/services/readapi/internal/store"
+	storepg "github.com/sylvain/realtoragent/services/readapi/internal/store/postgres"
 )
 
 func main() {
@@ -24,7 +24,7 @@ func main() {
 	}
 
 	var dbClient *db.DB
-	var listingsService *listings.Service
+	var listingsStore store.Store
 	var dbPing func(context.Context) error
 
 	if cfg.DBEnabled {
@@ -37,11 +37,10 @@ func main() {
 		}
 		dbClient = client
 		dbPing = dbClient.Ping
-		listingsRepo := postgres.NewListingsRepository(dbClient)
-		listingsService = listings.NewService(listingsRepo)
+		listingsStore = storepg.New(dbClient)
 	}
 
-	handler := httpapi.NewHandler(listingsService, cfg.DBEnabled, dbPing)
+	handler := httpapi.NewHandler(listingsStore, cfg.DBEnabled, dbPing)
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
 		Handler:           httpapi.NewRouter(handler, cfg.CORSAllowOrigin),

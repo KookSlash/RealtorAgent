@@ -46,6 +46,13 @@ func TestParseSQSMessage(t *testing.T) {
 			expectCount:  0,
 		},
 		{
+			name:         "test event with service",
+			body:         readFixture(t, "sqs/test_event_service.json"),
+			expectAction: ActionDelete,
+			expectReason: "test_event",
+			expectCount:  0,
+		},
+		{
 			name:         "no records",
 			body:         readFixture(t, "sqs/no_records.json"),
 			expectAction: ActionDelete,

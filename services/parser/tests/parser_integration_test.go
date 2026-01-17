@@ -160,6 +160,50 @@ func waitForMessages(t *testing.T, env *testEnv) {
 	}
 }
 
+func assertQueueEmpty(t *testing.T, env *testEnv) {
+	ctx := context.Background()
+	for i := 0; i < 10; i++ {
+		out, err := env.sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+			QueueUrl: aws.String(env.queueURL),
+			AttributeNames: []types.QueueAttributeName{
+				types.QueueAttributeNameApproximateNumberOfMessages,
+				types.QueueAttributeNameApproximateNumberOfMessagesNotVisible,
+			},
+		})
+		if err != nil {
+			t.Fatalf("get queue attributes failed: %v", err)
+		}
+		visible := out.Attributes[string(types.QueueAttributeNameApproximateNumberOfMessages)]
+		invisible := out.Attributes[string(types.QueueAttributeNameApproximateNumberOfMessagesNotVisible)]
+		if (visible == "" || visible == "0") && (invisible == "" || invisible == "0") {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	out, err := env.sqsClient.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+		QueueUrl:            aws.String(env.queueURL),
+		MaxNumberOfMessages: 1,
+		WaitTimeSeconds:     1,
+	})
+	if err != nil {
+		t.Fatalf("receive message failed: %v", err)
+	}
+	if len(out.Messages) == 0 {
+		return
+	}
+	for _, msg := range out.Messages {
+		_, err := env.sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+			QueueUrl:      aws.String(env.queueURL),
+			ReceiptHandle: msg.ReceiptHandle,
+		})
+		if err != nil {
+			t.Fatalf("delete message failed: %v", err)
+		}
+	}
+	t.Fatalf("expected queue to be empty after processing TestEvent")
+}
+
 func putObject(t *testing.T, env *testEnv, key string, body string) {
 	ctx := context.Background()
 	_, err := env.s3Client.PutObject(ctx, &s3.PutObjectInput{
@@ -176,7 +220,7 @@ func sendTestEvent(t *testing.T, env *testEnv) {
 	ctx := context.Background()
 	_, err := env.sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
 		QueueUrl:    aws.String(env.queueURL),
-		MessageBody: aws.String(`{"Event":"s3:TestEvent"}`),
+		MessageBody: aws.String(`{"Service":"Amazon S3","Event":"s3:TestEvent","Time":"2025-01-01T00:00:00Z"}`),
 	})
 	if err != nil {
 		t.Fatalf("send test event failed: %v", err)
@@ -325,6 +369,8 @@ func TestIgnoresTestEvent(t *testing.T) {
 	if beforeProcessed != afterProcessed || beforeListings != afterListings || beforeHistory != afterHistory || beforeAttempts != afterAttempts {
 		t.Fatalf("expected no DB changes for TestEvent")
 	}
+
+	assertQueueEmpty(t, env)
 }
 
 func TestProcessesAndArchives(t *testing.T) {

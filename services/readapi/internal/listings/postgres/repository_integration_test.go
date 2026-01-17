@@ -9,9 +9,12 @@ import (
 
 	"github.com/sylvain/realtoragent/services/readapi/internal/config"
 	"github.com/sylvain/realtoragent/services/readapi/internal/db"
+	"github.com/sylvain/realtoragent/services/readapi/internal/testutil"
 )
 
 func TestListingsRepositoryCountIntegration(t *testing.T) {
+	testutil.EnsureIntegrationDBEnv(t)
+
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("config load: %v", err)
@@ -40,6 +43,8 @@ func TestListingsRepositoryCountIntegration(t *testing.T) {
 }
 
 func TestListingsRepositoryListIntegration(t *testing.T) {
+	testutil.EnsureIntegrationDBEnv(t)
+
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("config load: %v", err)
@@ -57,7 +62,7 @@ func TestListingsRepositoryListIntegration(t *testing.T) {
 	}
 	defer dbClient.Close()
 
-	if _, err := dbClient.Exec(ctx, "TRUNCATE listings RESTART IDENTITY"); err != nil {
+	if _, err := dbClient.Exec(ctx, "TRUNCATE price_history, listings RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("truncate listings: %v", err)
 	}
 

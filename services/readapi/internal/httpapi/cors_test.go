@@ -4,13 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/sylvain/realtoragent/services/readapi/internal/listings"
 )
 
 func TestCORSHeadersOnGet(t *testing.T) {
-	repo := &fakeListingsRepo{count: 1}
-	handler := NewHandler(listings.NewService(repo), false, nil)
+	store := &fakeStore{count: 1}
+	handler := NewHandler(store, false, nil)
 	router := NewRouter(handler, "http://localhost:3000")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/listings/count", nil)
@@ -24,8 +22,8 @@ func TestCORSHeadersOnGet(t *testing.T) {
 }
 
 func TestCORSPreflightOptions(t *testing.T) {
-	repo := &fakeListingsRepo{count: 1}
-	handler := NewHandler(listings.NewService(repo), false, nil)
+	store := &fakeStore{count: 1}
+	handler := NewHandler(store, false, nil)
 	router := NewRouter(handler, "*")
 
 	req := httptest.NewRequest(http.MethodOptions, "/v1/listings/count", nil)

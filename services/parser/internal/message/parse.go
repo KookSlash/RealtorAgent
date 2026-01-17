@@ -55,7 +55,7 @@ func ParseSQSMessage(body string) ParseResult {
 		return ParseResult{Action: ActionDelete, Reason: "invalid_json"}
 	}
 
-	if event.Event == "s3:TestEvent" && len(event.Records) == 0 {
+	if event.Event == "s3:TestEvent" {
 		return ParseResult{Action: ActionDelete, Reason: "test_event"}
 	}
 

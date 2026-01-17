@@ -1,0 +1,1 @@
+{"Service":"Amazon S3","Event":"s3:TestEvent","Time":"2025-01-01T00:00:00Z","Bucket":"example-bucket"}

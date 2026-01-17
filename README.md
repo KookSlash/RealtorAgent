@@ -148,6 +148,11 @@ Run the integration tests against LocalStack + Postgres:
 - make db-migrate
 - ./scripts/test-parser.sh
 
+## ReadAPI integration tests
+- App/runtime DB: `realestate`
+- Integration-test DB: `realestate_it` (created and migrated automatically)
+- Safe command: `make test-readapi-integration` (does not touch `realestate`)
+
 ## End-to-end pipeline test (deterministic)
 Runs a full pipeline using the local fixture (no live scraping):
 - make test-e2e
@@ -165,10 +170,20 @@ One-shot manual run (live scrape + parser + verification):
 Note: `make run-zolo` is the one-shot command; the infra steps are shown for clarity.
 
 ## Local app run (real data)
-- make run
-- If DB is empty and no raw run files exist, run: make run-zolo
+- `make run` launches infra + ReadAPI + Flutter (apps/client).
+- If the DB is empty, it runs one real scrape automatically.
+- Force a refresh: `RUN_SCRAPE=true make run`.
+- Confirm real data:
+  - `curl http://127.0.0.1:8090/healthz`
+  - `docker exec -i calgary-realestate-infra-postgres-1 psql -U realestate -d realestate -tAc "select count(*) from listings;"`
+  - In the UI, total > 0 and `last_seen_at` reflects recent scrape timestamps.
 
 Logs live under `./tmp/run/`.
+
+## ReadAPI value score
+- `/v1/listings` supports `sort=value_desc`.
+- `ppsf_percentile` is the percentile of price-per-sqft within its comps group (0=best value, 100=worst).
+- `value_score` is the inverse of percentile (100=best value).
 
 ## Unit tests
 Run fast, hermetic unit tests locally:

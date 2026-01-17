@@ -8,6 +8,11 @@ void main() {
     expect(config.apiBaseUrl.toString(), 'http://localhost:8090');
   });
 
+  test('fromBaseUrl adds default port for 127.0.0.1', () {
+    final config = AppConfig.fromBaseUrl('http://127.0.0.1');
+    expect(config.apiBaseUrl.toString(), 'http://127.0.0.1:8090');
+  });
+
   test('fromBaseUrl adds scheme when missing', () {
     final config = AppConfig.fromBaseUrl('localhost:8090');
     expect(config.apiBaseUrl.toString(), 'http://localhost:8090');
