@@ -3,8 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+STACK="${STACK:-run}"
+export STACK
+stack_env
+source "${ROOT_DIR}/scripts/lib/compose.sh"
 
-COMPOSE="docker compose -f infra/docker-compose.yml"
 export AWS_PAGER=""
 
 OUTPUT_DIR="$ROOT_DIR/tmp"
@@ -48,10 +52,10 @@ extract_env_value() {
   printf '%s\n' "$2" | awk -F= -v k="$key" '$1==k { $1=""; sub(/^=/,""); print $0 }' | tail -n 1
 }
 
-run_cmd bash -lc "$COMPOSE ps"
+run_cmd compose_infra ps
 compose_ps="$CMD_OUT"
 
-run_cmd docker exec localstack env
+run_cmd compose_infra exec -T localstack env
 localstack_env="$CMD_OUT"
 
 env_services="$(extract_env_value "SERVICES" "$localstack_env")"
@@ -61,29 +65,29 @@ env_aws_default_region="$(extract_env_value "AWS_DEFAULT_REGION" "$localstack_en
 env_edge_port="$(extract_env_value "EDGE_PORT" "$localstack_env")"
 env_hostname_external="$(extract_env_value "HOSTNAME_EXTERNAL" "$localstack_env")"
 
-run_cmd docker exec localstack sh -lc "curl -sf http://localhost:4566/_localstack/health"
+run_cmd compose_infra exec -T localstack sh -lc "curl -sf http://localhost:4566/_localstack/health"
 health_raw="$CMD_OUT"
 health_rc=$CMD_RC
 if [ -z "$health_raw" ]; then
   health_raw="$CMD_ERR"
 fi
 
-run_cmd docker logs --tail 200 localstack
+run_cmd compose_infra logs --tail 200 localstack
 logs_tail="$CMD_OUT"
 
-run_cmd docker exec localstack sh -lc "command -v awslocal"
+run_cmd compose_infra exec -T localstack sh -lc "command -v awslocal"
 awslocal_path="$CMD_OUT"
 if [ -z "$awslocal_path" ]; then
   awslocal_path="$CMD_ERR"
 fi
 
-run_cmd docker exec localstack sh -lc "aws --version"
+run_cmd compose_infra exec -T localstack sh -lc "aws --version"
 aws_version="$CMD_OUT"
 if [ -z "$aws_version" ]; then
   aws_version="$CMD_ERR"
 fi
 
-run_cmd docker exec localstack sh -lc "awslocal --version"
+run_cmd compose_infra exec -T localstack sh -lc "awslocal --version"
 awslocal_version="$CMD_OUT"
 if [ -z "$awslocal_version" ]; then
   awslocal_version="$CMD_ERR"

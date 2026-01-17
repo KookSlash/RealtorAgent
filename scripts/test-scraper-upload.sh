@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STACK="${STACK:-test}"
+export STACK
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
 
 if ! command -v awslocal >/dev/null 2>&1; then
   echo "awslocal is required (pip install awscli-local)."
@@ -16,6 +19,7 @@ fi
 set -a
 . "$ROOT_DIR/infra/.env"
 set +a
+stack_env
 
 make -C "$ROOT_DIR" infra-up
 make -C "$ROOT_DIR" infra-init

@@ -84,6 +84,27 @@ func newTestEnv(t *testing.T) *testEnv {
 	}
 }
 
+func setupTestEnv(t *testing.T) *testEnv {
+	t.Helper()
+	env := newTestEnv(t)
+	resetState(t, env)
+	return env
+}
+
+func resetState(t *testing.T, env *testEnv) {
+	t.Helper()
+	resetDB(t, env)
+	drainQueue(t, env)
+}
+
+func resetDB(t *testing.T, env *testEnv) {
+	t.Helper()
+	_, err := env.sqlDB.Exec("TRUNCATE price_history, listings, processed_files, processing_attempts RESTART IDENTITY CASCADE")
+	if err != nil {
+		t.Fatalf("truncate tables failed: %v", err)
+	}
+}
+
 func mustQueueURL(t *testing.T, client *sqs.Client, name string) string {
 	ctx := context.Background()
 	out, err := client.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(name)})
@@ -282,8 +303,7 @@ func getObjectLines(t *testing.T, env *testEnv, bucket, key string) []string {
 }
 
 func TestIgnoresTestEvent(t *testing.T) {
-	env := newTestEnv(t)
-	drainQueue(t, env)
+	env := setupTestEnv(t)
 
 	beforeProcessed := countTable(t, env, "processed_files")
 	beforeListings := countTable(t, env, "listings")
@@ -308,8 +328,7 @@ func TestIgnoresTestEvent(t *testing.T) {
 }
 
 func TestProcessesAndArchives(t *testing.T) {
-	env := newTestEnv(t)
-	drainQueue(t, env)
+	env := setupTestEnv(t)
 
 	dateStr := time.Now().UTC().Format("2006-01-02")
 	key := fmt.Sprintf("raw/realtorca/%s/run-test-t2-%d.jsonl", dateStr, time.Now().UnixNano())
@@ -380,8 +399,7 @@ func TestProcessesAndArchives(t *testing.T) {
 }
 
 func TestIdempotency(t *testing.T) {
-	env := newTestEnv(t)
-	drainQueue(t, env)
+	env := setupTestEnv(t)
 
 	dateStr := time.Now().UTC().Format("2006-01-02")
 	key := fmt.Sprintf("raw/realtorca/%s/run-test-t3-%d.jsonl", dateStr, time.Now().UnixNano())
@@ -422,8 +440,7 @@ func TestIdempotency(t *testing.T) {
 }
 
 func TestZoloSourceIdentityAllowsEmptyPostal(t *testing.T) {
-	env := newTestEnv(t)
-	drainQueue(t, env)
+	env := setupTestEnv(t)
 
 	contents := readFixture(t, "zolo_identity.jsonl")
 
@@ -504,8 +521,7 @@ func TestZoloSourceIdentityAllowsEmptyPostal(t *testing.T) {
 }
 
 func TestEventOnlyHistory(t *testing.T) {
-	env := newTestEnv(t)
-	drainQueue(t, env)
+	env := setupTestEnv(t)
 
 	dateStr := time.Now().UTC().Format("2006-01-02")
 	key1 := fmt.Sprintf("raw/realtorca/%s/run-test-t4a-%d.jsonl", dateStr, time.Now().UnixNano())
@@ -566,8 +582,7 @@ func TestEventOnlyHistory(t *testing.T) {
 }
 
 func TestRetryLimit(t *testing.T) {
-	env := newTestEnv(t)
-	drainQueue(t, env)
+	env := setupTestEnv(t)
 
 	dateStr := time.Now().UTC().Format("2006-01-02")
 	key := fmt.Sprintf("raw/realtorca/%s/run-test-t5-%d.jsonl", dateStr, time.Now().UnixNano())

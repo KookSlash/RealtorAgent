@@ -164,6 +164,12 @@ One-shot manual run (live scrape + parser + verification):
 
 Note: `make run-zolo` is the one-shot command; the infra steps are shown for clarity.
 
+## Local app run (real data)
+- make run
+- If DB is empty and no raw run files exist, run: make run-zolo
+
+Logs live under `./tmp/run/`.
+
 ## Unit tests
 Run fast, hermetic unit tests locally:
 - go test ./...

@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+STACK="${STACK:-run}"
+export STACK
+stack_env
+source "${ROOT_DIR}/scripts/lib/compose.sh"
+
 echo "== Docker containers =="
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | sed -n '1p;/localstack/p;/postgres/p'
+compose_infra ps
 
 echo
 echo "== LocalStack health =="

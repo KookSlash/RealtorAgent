@@ -3,10 +3,24 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+STACK="${STACK:-test}"
+export STACK
+stack_env
+source "${ROOT_DIR}/scripts/lib/compose.sh"
 
 say() {
   echo "[app-smoke] $*"
 }
+
+if [[ "${STACK}" != "test" ]]; then
+  echo "ERROR: refusing to run app-smoke on stack=${STACK}. Set STACK=test." >&2
+  exit 1
+fi
+if [[ "${LOCALSTACK_PORT}" == "4566" || "${POSTGRES_PORT}" == "5432" ]]; then
+  echo "ERROR: refusing to run app-smoke against RUN ports (LOCALSTACK_PORT=${LOCALSTACK_PORT}, POSTGRES_PORT=${POSTGRES_PORT})." >&2
+  exit 1
+fi
 
 run_make_target() {
   local target="$1"
@@ -19,7 +33,8 @@ run_make_target() {
 
 say "Starting infra"
 if ! run_make_target infra-up; then
-  docker compose -f infra/docker-compose.yml up -d
+  # Remove orphans (like readapi) so infra stays clean and warnings are avoided.
+  compose_infra up -d --remove-orphans
 fi
 
 say "Initializing LocalStack"

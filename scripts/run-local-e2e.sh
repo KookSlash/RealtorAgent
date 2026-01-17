@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STACK="${STACK:-test}"
+export STACK
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+stack_env
 
 # Load infra env (buckets/queue/region/db) if present
 if [[ -f "${ROOT_DIR}/infra/.env" ]]; then
@@ -9,6 +13,7 @@ if [[ -f "${ROOT_DIR}/infra/.env" ]]; then
   source "${ROOT_DIR}/infra/.env"
   set +a
 fi
+stack_env
 
 : "${AWS_REGION:=us-west-2}"
 : "${LOCALSTACK_ENDPOINT:=http://localhost:4566}"

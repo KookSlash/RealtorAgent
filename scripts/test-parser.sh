@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+STACK="${STACK:-test}"
+export STACK
+source "${ROOT_DIR}/scripts/lib/compose.sh"
+
 if [[ ! -f infra/.env ]]; then
   echo "Missing infra/.env (required for LocalStack/Postgres settings)." >&2
   exit 1
@@ -9,6 +16,17 @@ fi
 set -a
 source infra/.env
 set +a
+export AWS_PAGER=""
+stack_env
+
+if [[ "${STACK}" != "test" ]]; then
+  echo "ERROR: refusing to run test-parser on stack=${STACK}. Set STACK=test." >&2
+  exit 1
+fi
+if [[ "${LOCALSTACK_PORT}" == "4566" || "${POSTGRES_PORT}" == "5432" ]]; then
+  echo "ERROR: refusing to run test-parser against RUN ports (LOCALSTACK_PORT=${LOCALSTACK_PORT}, POSTGRES_PORT=${POSTGRES_PORT})." >&2
+  exit 1
+fi
 
 health_url="http://localhost:${LOCALSTACK_PORT}/_localstack/health"
 if ! curl -sf "${health_url}" >/dev/null; then
@@ -16,7 +34,7 @@ if ! curl -sf "${health_url}" >/dev/null; then
   exit 1
 fi
 
-if ! docker exec postgres pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
+if ! compose_infra exec -T postgres pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
   echo "Postgres is not ready. Run: make infra-up" >&2
   exit 1
 fi
@@ -36,7 +54,7 @@ if ! awslocal sqs get-queue-url --queue-name "${RAW_EVENTS_QUEUE}" >/dev/null 2>
   exit 1
 fi
 
-make db-migrate
+AWS_PAGER="" make db-migrate
 
 # Create a dedicated test object
 DATE_STR="$(date -u +%Y-%m-%d)"

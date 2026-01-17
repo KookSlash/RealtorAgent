@@ -3,6 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+STACK="${STACK:-test}"
+export STACK
+stack_env
+source "${ROOT_DIR}/scripts/lib/compose.sh"
 
 LOG_DIR="${ROOT_DIR}/tmp/run-local"
 mkdir -p "${LOG_DIR}"
@@ -30,6 +35,13 @@ if ! docker compose version >/dev/null 2>&1; then
   die "docker compose is required"
 fi
 
+if [[ "${STACK}" != "test" ]]; then
+  die "Refusing to run run-local on stack=${STACK}. Set STACK=test."
+fi
+if [[ "${LOCALSTACK_PORT}" == "4566" || "${POSTGRES_PORT}" == "5432" ]]; then
+  die "Refusing to run run-local against RUN ports (LOCALSTACK_PORT=${LOCALSTACK_PORT}, POSTGRES_PORT=${POSTGRES_PORT})."
+fi
+
 if ! command -v lsof >/dev/null 2>&1; then
   die "lsof is required to check port availability"
 fi
@@ -46,6 +58,7 @@ FIXTURE_PATH="scripts/fixtures/zolo_raw_minimal.jsonl"
 set -a
 source infra/.env
 set +a
+stack_env
 
 export AWS_REGION="${AWS_REGION:-us-west-2}"
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION}}"
@@ -66,7 +79,8 @@ RAW_KEY="raw/e2e/zolo/${DATE_UTC}/run-local.jsonl"
 EXPECTED_LINES="$(wc -l < "${FIXTURE_PATH}" | tr -d ' ')"
 
 say "Starting infra"
-docker compose -f infra/docker-compose.yml up -d
+# Remove orphans (like readapi) so infra stays clean and warnings are avoided.
+compose_infra up -d --remove-orphans
 
 say "Initializing LocalStack"
 ./scripts/init-localstack.sh
@@ -75,7 +89,7 @@ say "Running DB migrations"
 ./scripts/db-migrate.sh
 
 say "Resetting DB state"
-docker exec -i postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -v ON_ERROR_STOP=1 -c \
+compose_infra exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -v ON_ERROR_STOP=1 -c \
   "TRUNCATE listings, price_history, processed_files, processing_attempts RESTART IDENTITY;"
 
 say "Resetting SQS queue"
@@ -103,7 +117,7 @@ awslocal s3 rm "s3://${VAULT_BUCKET}/vault/normalized/raw/e2e/" --recursive >/de
 awslocal s3 rm "s3://${VAULT_BUCKET}/vault/errors/raw/e2e/" --recursive >/dev/null
 
 say "Uploading fixture to raw bucket"
-cat "${FIXTURE_PATH}" | docker compose -f infra/docker-compose.yml exec -T localstack sh -lc \
+cat "${FIXTURE_PATH}" | compose_infra exec -T localstack sh -lc \
   "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} AWS_REGION=${AWS_REGION} awslocal s3 cp - s3://${RAW_BUCKET}/${RAW_KEY}"
 
 say "Running parser once"
@@ -125,7 +139,8 @@ say "Running parser once"
 )
 
 say "Starting readapi"
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.readapi.yml up -d --build readapi
+# Remove orphans to keep the compose project clean across runs.
+compose_infra_readapi up -d --build --remove-orphans readapi
 
 say "Waiting for readapi readiness"
 READAPI_STATUS="000"
@@ -138,7 +153,7 @@ for _ in {1..50}; do
 done
 
 if [[ "${READAPI_STATUS}" != "200" ]]; then
-  docker compose -f infra/docker-compose.yml -f infra/docker-compose.readapi.yml logs --tail 200 readapi > "${READAPI_LOG}" 2>&1 || true
+  compose_infra_readapi logs --tail 200 readapi > "${READAPI_LOG}" 2>&1 || true
   BODY=""
   if [[ -f "${READAPI_PROBE_BODY}" ]]; then
     BODY="$(cat "${READAPI_PROBE_BODY}")"

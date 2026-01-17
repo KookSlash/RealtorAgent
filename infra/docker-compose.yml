@@ -3,9 +3,8 @@ name: calgary-realestate-infra
 services:
   localstack:
     image: ${LOCALSTACK_IMAGE}
-    container_name: localstack
     ports:
-      - "${LOCALSTACK_PORT}:4566"
+      - "${LOCALSTACK_PORT:-4566}:4566"
     environment:
       - SERVICES=s3,sqs
       - DEFAULT_REGION=${AWS_REGION}
@@ -23,9 +22,8 @@ services:
 
   postgres:
     image: ${POSTGRES_IMAGE}
-    container_name: postgres
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -46,4 +44,3 @@ volumes:
 
 networks:
   calgary_net:
-    name: calgary_net

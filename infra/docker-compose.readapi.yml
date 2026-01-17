@@ -3,7 +3,6 @@ services:
     build:
       context: ../services/readapi
       dockerfile: Dockerfile
-    container_name: readapi
     ports:
       - "8090:8080"
     env_file:

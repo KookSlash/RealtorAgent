@@ -3,6 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+STACK="${STACK:-test}"
+export STACK
+source "${ROOT_DIR}/scripts/lib/compose.sh"
 
 if [[ ! -f infra/.env ]]; then
   echo "Missing infra/.env (required for LocalStack/Postgres settings)." >&2
@@ -12,6 +16,7 @@ fi
 set -a
 source infra/.env
 set +a
+stack_env
 
 required_vars=(LOCALSTACK_PORT AWS_REGION RAW_BUCKET VAULT_BUCKET RAW_EVENTS_QUEUE POSTGRES_USER POSTGRES_DB POSTGRES_PASSWORD POSTGRES_PORT)
 for var in "${required_vars[@]}"; do
@@ -21,15 +26,22 @@ for var in "${required_vars[@]}"; do
   fi
 done
 
+if [[ "${STACK}" != "test" ]]; then
+  echo "ERROR: refusing to run test-e2e-zolo on stack=${STACK}. Set STACK=test." >&2
+  exit 1
+fi
+if [[ "${LOCALSTACK_PORT}" == "4566" || "${POSTGRES_PORT}" == "5432" ]]; then
+  echo "ERROR: refusing to run test-e2e-zolo against RUN ports (LOCALSTACK_PORT=${LOCALSTACK_PORT}, POSTGRES_PORT=${POSTGRES_PORT})." >&2
+  exit 1
+fi
+
 export AWS_PAGER=""
 export AWS_DEFAULT_REGION="${AWS_REGION}"
 export LOCALSTACK_ENDPOINT="http://localhost:${LOCALSTACK_PORT}"
 
-COMPOSE="docker compose -f infra/docker-compose.yml"
-
 pg_exec() {
   local sql="$1"
-  ${COMPOSE} exec -T -e PGPASSWORD="${POSTGRES_PASSWORD}" postgres \
+  compose_infra exec -T -e PGPASSWORD="${POSTGRES_PASSWORD}" postgres \
     psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c "${sql}"
 }
 
@@ -49,19 +61,19 @@ wait_localstack() {
     sleep 1
   done
   echo "LocalStack is not reachable or unhealthy at ${health_url}." >&2
-  docker logs --tail 200 localstack >&2 || true
+  compose_infra logs --tail 200 localstack >&2 || true
   exit 1
 }
 
 wait_postgres() {
   for _ in {1..30}; do
-    if ${COMPOSE} exec -T postgres pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
+    if compose_infra exec -T postgres pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
   done
   echo "Postgres is not ready." >&2
-  docker logs --tail 200 postgres >&2 || true
+  compose_infra logs --tail 200 postgres >&2 || true
   exit 1
 }
 
@@ -81,7 +93,7 @@ mkdir -p "${ROOT_DIR}/tmp"
 echo "[e2e] Starting infra"
 make infra-up
 
-if ! ${COMPOSE} wait --timeout 120 localstack postgres >/dev/null 2>&1; then
+if ! compose_infra wait --timeout 120 localstack postgres >/dev/null 2>&1; then
   wait_localstack
   wait_postgres
 fi

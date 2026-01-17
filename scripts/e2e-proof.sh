@@ -6,6 +6,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
+source "${ROOT_DIR}/scripts/lib/stack-env.sh"
+STACK="${STACK:-test}"
+export STACK
+source "${ROOT_DIR}/scripts/lib/compose.sh"
 
 say() {
   echo "[e2e-proof] $*"
@@ -112,6 +116,14 @@ FIXTURE_PATH="scripts/fixtures/zolo_raw_minimal.jsonl"
 set -a
 source infra/.env
 set +a
+stack_env
+
+if [[ "${STACK}" != "test" ]]; then
+  die "Refusing to run e2e-proof on stack=${STACK}. Set STACK=test."
+fi
+if [[ "${LOCALSTACK_PORT}" == "4566" || "${POSTGRES_PORT}" == "5432" ]]; then
+  die "Refusing to run e2e-proof against RUN ports (LOCALSTACK_PORT=${LOCALSTACK_PORT}, POSTGRES_PORT=${POSTGRES_PORT})."
+fi
 
 export AWS_REGION="${AWS_REGION:-us-west-2}"
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION}}"
@@ -130,7 +142,8 @@ say "READAPI_BIN=${READAPI_BIN}"
 say "READAPI_PORT=${READAPI_PORT}"
 
 say "Starting infra"
-docker compose -f infra/docker-compose.yml up -d
+# Remove orphans (like readapi) so infra stays clean and warnings are avoided.
+compose_infra up -d --remove-orphans
 
 say "Initializing LocalStack"
 ./scripts/init-localstack.sh
@@ -139,7 +152,7 @@ say "Running DB migrations"
 ./scripts/db-migrate.sh
 
 say "Resetting DB state"
-docker exec -i postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -v ON_ERROR_STOP=1 -c \
+compose_infra exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -v ON_ERROR_STOP=1 -c \
   "TRUNCATE listings, price_history, processed_files, processing_attempts RESTART IDENTITY;"
 
 say "Resetting SQS queue"
@@ -167,7 +180,7 @@ awslocal s3 rm "s3://${VAULT_BUCKET}/vault/normalized/raw/e2e/" --recursive >/de
 awslocal s3 rm "s3://${VAULT_BUCKET}/vault/errors/raw/e2e/" --recursive >/dev/null
 
 say "Uploading fixture to raw bucket"
-cat "${FIXTURE_PATH}" | docker compose -f infra/docker-compose.yml exec -T localstack sh -lc \
+cat "${FIXTURE_PATH}" | compose_infra exec -T localstack sh -lc \
   "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} AWS_REGION=${AWS_REGION} awslocal s3 cp - s3://${RAW_BUCKET}/${RAW_KEY}"
 
 say "Running parser once"
@@ -189,14 +202,14 @@ say "Running parser once"
 )
 
 say "Validating processed_files row"
-processed_count="$(docker exec -i postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c \
+processed_count="$(compose_infra exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c \
   "SELECT COUNT(*) FROM processed_files WHERE s3_bucket='${RAW_BUCKET}' AND s3_key='${RAW_KEY}'")"
 processed_count="$(echo "${processed_count}" | tr -d '[:space:]')"
 if [[ "${processed_count}" != "1" ]]; then
   die "expected 1 processed_files row for ${RAW_KEY}, got ${processed_count}"
 fi
 
-processed_row="$(docker exec -i postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c \
+processed_row="$(compose_infra exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c \
   "SELECT status, COALESCE(vault_raw_key,''), COALESCE(vault_normalized_key,''), COALESCE(vault_errors_key,'') FROM processed_files WHERE s3_bucket='${RAW_BUCKET}' AND s3_key='${RAW_KEY}'")"
 processed_row="$(echo "${processed_row}" | tr -d '\r' | tr -d '\n')"
 IFS='|' read -r status vault_raw_key vault_norm_key vault_err_key <<< "${processed_row}"
@@ -214,13 +227,13 @@ awslocal s3api head-object --bucket "${VAULT_BUCKET}" --key "${vault_raw_key}" >
 awslocal s3api head-object --bucket "${VAULT_BUCKET}" --key "${vault_norm_key}" >/dev/null
 awslocal s3api head-object --bucket "${VAULT_BUCKET}" --key "${vault_err_key}" >/dev/null
 
-listings_count="$(docker exec -i postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c "SELECT COUNT(*) FROM listings")"
+listings_count="$(compose_infra exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c "SELECT COUNT(*) FROM listings")"
 listings_count="$(echo "${listings_count}" | tr -d '[:space:]')"
 if [[ "${listings_count}" != "${EXPECTED_LINES}" ]]; then
   die "expected listings count ${EXPECTED_LINES}, got ${listings_count}"
 fi
 
-price_history_count="$(docker exec -i postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c "SELECT COUNT(*) FROM price_history")"
+price_history_count="$(compose_infra exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -A -c "SELECT COUNT(*) FROM price_history")"
 price_history_count="$(echo "${price_history_count}" | tr -d '[:space:]')"
 if [[ "${price_history_count}" -lt "${EXPECTED_LINES}" ]]; then
   die "expected price_history count >= ${EXPECTED_LINES}, got ${price_history_count}"
