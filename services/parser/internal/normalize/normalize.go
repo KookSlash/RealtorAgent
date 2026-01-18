@@ -12,6 +12,7 @@ var (
 	multiSpaceRegex = regexp.MustCompile(`\s+`)
 	nonTextRegex    = regexp.MustCompile(`[^a-z0-9 ]+`)
 	nonPostalRegex  = regexp.MustCompile(`[^A-Z0-9]+`)
+	unitPrefixRegex = regexp.MustCompile(`^\s*(\d+)\s*-\s*(.+)$`)
 )
 
 func NormalizeText(input string) string {
@@ -81,6 +82,16 @@ func NormalizePropertyType(input string) string {
 	return "OTHER"
 }
 
+func NormalizePropertyTypeHint(input string) (string, bool) {
+	value := strings.ToUpper(strings.TrimSpace(input))
+	switch value {
+	case "HOUSE", "CONDO", "TOWNHOUSE", "DUPLEX", "LAND", "OTHER":
+		return value, true
+	default:
+		return "", false
+	}
+}
+
 func containsAny(normalized string, compact string, tokens []string) bool {
 	for _, token := range tokens {
 		if token == "" {
@@ -95,4 +106,17 @@ func containsAny(normalized string, compact string, tokens []string) bool {
 		}
 	}
 	return false
+}
+
+func SplitUnitFromAddress(input string) (string, string, bool) {
+	match := unitPrefixRegex.FindStringSubmatch(input)
+	if len(match) < 3 {
+		return "", strings.TrimSpace(input), false
+	}
+	unit := strings.TrimSpace(match[1])
+	address := strings.TrimSpace(match[2])
+	if unit == "" || address == "" {
+		return "", strings.TrimSpace(input), false
+	}
+	return unit, address, true
 }

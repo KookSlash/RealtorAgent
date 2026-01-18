@@ -21,6 +21,7 @@ type ListingSnapshot struct {
 	City            string          `json:"city,omitempty"`
 	Province        string          `json:"province,omitempty"`
 	PropertyType    string          `json:"property_type"`
+	PropertyTypeHint string         `json:"property_type_hint,omitempty"`
 	Price           float64         `json:"price"`
 	Beds            int             `json:"beds,omitempty"`
 	Baths           float64         `json:"baths,omitempty"`

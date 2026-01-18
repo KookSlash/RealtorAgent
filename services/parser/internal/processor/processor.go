@@ -312,15 +312,15 @@ func (p *Processor) normalizeLine(line string, lineNumber int) (*model.Normalize
 		return nil, &model.ErrorRecord{LineNumber: lineNumber, Reason: "invalid_json", RawLine: line}
 	}
 
-	address := getString(payload, "address")
+	rawAddress := getString(payload, "address")
 	postal := getString(payload, "postal_code")
-	unit := getString(payload, "unit")
+	rawUnit := getString(payload, "unit")
 	sourceListingID := getString(payload, "source_listing_id")
 	if strings.TrimSpace(sourceListingID) == "" {
 		sourceListingID = getString(payload, "listing_id")
 	}
 
-	if strings.TrimSpace(address) == "" {
+	if strings.TrimSpace(rawAddress) == "" {
 		return nil, &model.ErrorRecord{LineNumber: lineNumber, Reason: "missing_identity_fields", RawLine: line}
 	}
 
@@ -341,10 +341,33 @@ func (p *Processor) normalizeLine(line string, lineNumber int) (*model.Normalize
 	latVal, _ := getFloatPtr(payload, "lat")
 	lonVal, _ := getFloatPtr(payload, "lon")
 
-	propertyType := normalize.NormalizePropertyType(getString(payload, "property_type"))
+	unitFromAddress, addressWithoutUnit, unitMatched := normalize.SplitUnitFromAddress(rawAddress)
+	address := rawAddress
+	unit := rawUnit
+	if unitMatched {
+		address = addressWithoutUnit
+		if strings.TrimSpace(unit) == "" {
+			unit = unitFromAddress
+		}
+	}
+
+	propertyType := ""
+	if hint, ok := normalize.NormalizePropertyTypeHint(getString(payload, "property_type_hint")); ok {
+		propertyType = hint
+	} else {
+		propertyType = normalize.NormalizePropertyType(getString(payload, "property_type"))
+	}
 	url := getString(payload, "url")
 
-	propertyKey := normalize.PropertyKey(address, postal, unit)
+	identityAddress := rawAddress
+	identityUnit := rawUnit
+	if unitMatched {
+		identityUnit = ""
+	} else {
+		identityAddress = address
+		identityUnit = unit
+	}
+	propertyKey := normalize.PropertyKey(identityAddress, postal, identityUnit)
 	snapshotHash := normalize.SnapshotHash(
 		formatFloat(priceVal),
 		formatIntPtr(bedsVal),

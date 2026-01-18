@@ -124,7 +124,7 @@ func generateZoloSnapshot(ctx context.Context, cfg config.Config) (RunResult, er
 		}, err
 	}
 
-	extractor := extract.NewExtractor(strategy.NewZoloHTMLStrategy(cfg.ZoloBaseURL))
+	extractor := extract.NewExtractor(strategy.NewZoloHTMLStrategy(cfg.ZoloBaseURL, cfg.ZoloPropertyTypeHint))
 	recordsCount := 0
 
 	for _, page := range pages {

@@ -49,6 +49,7 @@ type Config struct {
 	SearchEntrypointURL string
 	ZoloEntrypointURL   string
 	ZoloBaseURL         string
+	ZoloPropertyTypeHint string
 }
 
 func Load() (Config, error) {
@@ -61,6 +62,7 @@ func Load() (Config, error) {
 	cfg.UserAgent = getEnvOrDefault("USER_AGENT", defaultUserAgent)
 	cfg.SearchEntrypointURL = strings.TrimSpace(os.Getenv("SEARCH_ENTRYPOINT_URL"))
 	cfg.ZoloEntrypointURL = strings.TrimSpace(os.Getenv("ZOLO_ENTRYPOINT_URL"))
+	cfg.ZoloPropertyTypeHint = strings.ToUpper(strings.TrimSpace(os.Getenv("ZOLO_PROPERTY_TYPE_HINT")))
 	cfg.Referer = resolveOptionalStringEnv("REFERER", defaultReferer)
 	cfg.ScraperStrategy = resolveScraperStrategy()
 	cfg.ZoloBaseURL = getEnvOrDefault("ZOLO_BASE_URL", defaultZoloBaseURL)
@@ -87,6 +89,9 @@ func Load() (Config, error) {
 	}
 	cfg.SourceID = sourceID
 	if err := validateEntrypoints(cfg); err != nil {
+		return cfg, err
+	}
+	if err := validatePropertyTypeHint(cfg.ZoloPropertyTypeHint); err != nil {
 		return cfg, err
 	}
 	if err := validateFetchMode(cfg.FetchMode); err != nil {
@@ -202,6 +207,18 @@ func validateFetchMode(mode string) error {
 		return nil
 	default:
 		return fmt.Errorf("FETCH_MODE must be http or browser")
+	}
+}
+
+func validatePropertyTypeHint(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "HOUSE", "CONDO", "TOWNHOUSE", "DUPLEX", "LAND", "OTHER":
+		return nil
+	default:
+		return fmt.Errorf("ZOLO_PROPERTY_TYPE_HINT must be one of HOUSE, CONDO, TOWNHOUSE, DUPLEX, LAND, OTHER")
 	}
 }
 

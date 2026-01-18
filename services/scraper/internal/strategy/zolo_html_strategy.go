@@ -18,11 +18,15 @@ var postalCodeRegex = regexp.MustCompile(`(?i)\b[abceghj-nprstvxy]\d[abceghj-npr
 var unitRegex = regexp.MustCompile(`(?i)\b(?:unit|suite|#)\s*([a-z0-9\-]+)\b`)
 
 type ZoloHTMLStrategy struct {
-	baseURL string
+	baseURL          string
+	propertyTypeHint string
 }
 
-func NewZoloHTMLStrategy(baseURL string) *ZoloHTMLStrategy {
-	return &ZoloHTMLStrategy{baseURL: strings.TrimSpace(baseURL)}
+func NewZoloHTMLStrategy(baseURL string, propertyTypeHint string) *ZoloHTMLStrategy {
+	return &ZoloHTMLStrategy{
+		baseURL:          strings.TrimSpace(baseURL),
+		propertyTypeHint: strings.ToUpper(strings.TrimSpace(propertyTypeHint)),
+	}
 }
 
 func (s *ZoloHTMLStrategy) Name() string {
@@ -110,6 +114,9 @@ func (s *ZoloHTMLStrategy) mapCard(card *html.Node, baseURL string, scrapedAt ti
 	snapshot.City = city
 	snapshot.Province = province
 	snapshot.PropertyType = propertyType
+	if s.propertyTypeHint != "" {
+		snapshot.PropertyTypeHint = s.propertyTypeHint
+	}
 	snapshot.Price = price
 	snapshot.Beds = beds
 	snapshot.Baths = baths

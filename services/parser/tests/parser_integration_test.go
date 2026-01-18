@@ -310,6 +310,22 @@ func getListingPropertyType(t *testing.T, env *testEnv, key string) string {
 	return value
 }
 
+func getListingByAddress(t *testing.T, env *testEnv, address string) (string, string, string) {
+	row := env.sqlDB.QueryRow(`
+		SELECT property_key, property_type, COALESCE(unit, '')
+		FROM listings
+		WHERE address=$1`, address)
+	var (
+		key          string
+		propertyType string
+		unit         string
+	)
+	if err := row.Scan(&key, &propertyType, &unit); err != nil {
+		t.Fatalf("listing lookup by address failed: %v", err)
+	}
+	return key, propertyType, unit
+}
+
 func readFixture(t *testing.T, name string) string {
 	t.Helper()
 	path := filepath.Join("testdata", name)
@@ -585,6 +601,29 @@ func TestZoloSourceIdentityAllowsEmptyPostal(t *testing.T) {
 
 	if processedAfter != 1 || listingsAfter != listingsCount || historyAfter != historyCount {
 		t.Fatalf("idempotency violated for zolo source identity")
+	}
+}
+
+func TestZoloPropertyTypeHintAndUnitSplit(t *testing.T) {
+	env := setupTestEnv(t)
+
+	dateStr := time.Now().UTC().Format("2006-01-02")
+	key := fmt.Sprintf("raw/zolo/%s/run-test-zolo-hint-%d.jsonl", dateStr, time.Now().UnixNano())
+
+	line := `{"source":"ZOLO_CA","source_listing_id":"calgary-real-estate/13104-elbow-drive-sw/1105","address":"1105-13104 Elbow Drive SW, Calgary, AB","postal_code":"","city":"Calgary","province":"AB","property_type":"SingleFamilyResidence","property_type_hint":"CONDO","price":450000,"beds":2,"baths":2,"sqft":1000,"url":"https://www.zolo.ca/calgary-real-estate/13104-elbow-drive-sw/1105","scraped_at":"2026-01-04T17:51:55Z"}`
+	putObject(t, env, key, line+"\n")
+	waitForMessages(t, env)
+
+	if err := runProcessorOnce(t, env); err != nil {
+		t.Fatalf("processor failed: %v", err)
+	}
+
+	_, propertyType, unit := getListingByAddress(t, env, "13104 Elbow Drive SW, Calgary, AB")
+	if propertyType != "CONDO" {
+		t.Fatalf("expected property_type CONDO, got %s", propertyType)
+	}
+	if unit != "1105" {
+		t.Fatalf("expected unit 1105, got %q", unit)
 	}
 }
 

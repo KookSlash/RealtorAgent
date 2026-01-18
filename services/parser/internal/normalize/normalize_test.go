@@ -119,6 +119,53 @@ func TestNormalizePropertyType(t *testing.T) {
 	}
 }
 
+func TestSplitUnitFromAddress(t *testing.T) {
+	cases := []struct {
+		name      string
+		input     string
+		unit      string
+		address   string
+		expectHit bool
+	}{
+		{
+			name:      "unit prefix",
+			input:     "1105-13104 Elbow Drive SW, Calgary, AB",
+			unit:      "1105",
+			address:   "13104 Elbow Drive SW, Calgary, AB",
+			expectHit: true,
+		},
+		{
+			name:      "unit prefix spaced",
+			input:     "18-10 Sage Meadows Landing NW, Calgary, AB",
+			unit:      "18",
+			address:   "10 Sage Meadows Landing NW, Calgary, AB",
+			expectHit: true,
+		},
+		{
+			name:      "no unit prefix",
+			input:     "13104 Elbow Drive SW, Calgary, AB",
+			unit:      "",
+			address:   "13104 Elbow Drive SW, Calgary, AB",
+			expectHit: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			unit, address, ok := SplitUnitFromAddress(tc.input)
+			if ok != tc.expectHit {
+				t.Fatalf("expected match=%v, got %v", tc.expectHit, ok)
+			}
+			if unit != tc.unit {
+				t.Fatalf("expected unit %q, got %q", tc.unit, unit)
+			}
+			if address != tc.address {
+				t.Fatalf("expected address %q, got %q", tc.address, address)
+			}
+		})
+	}
+}
+
 func FuzzNormalizeAddress(f *testing.F) {
 	f.Add("123 Main St")
 	f.Add("Unit #5B")

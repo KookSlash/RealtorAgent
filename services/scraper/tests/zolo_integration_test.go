@@ -65,7 +65,7 @@ func TestZoloPaginationAndExtractionIntegration(t *testing.T) {
 		t.Fatalf("expected 2 pages fetched, got %d", len(pages))
 	}
 
-	extractor := extract.NewExtractor(strategy.NewZoloHTMLStrategy(cfg.ZoloBaseURL))
+	extractor := extract.NewExtractor(strategy.NewZoloHTMLStrategy(cfg.ZoloBaseURL, cfg.ZoloPropertyTypeHint))
 	scrapedAt := time.Date(2025, 2, 3, 10, 11, 12, 0, time.UTC)
 	records := 0
 	for _, page := range pages {

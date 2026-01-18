@@ -102,8 +102,13 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION}}"
 export AWS_PAGER=""
 
 SCRAPER_STRATEGY="${SCRAPER_STRATEGY:-zolo_ca}"
-if [[ "${SCRAPER_STRATEGY}" == "zolo_ca" && -z "${ZOLO_ENTRYPOINT_URL:-}" ]]; then
-  ZOLO_ENTRYPOINT_URL="https://www.zolo.ca/index.php?sarea=Calgary&filter=1"
+if [[ "${SCRAPER_STRATEGY}" == "zolo_ca" ]]; then
+  ZOLO_ENTRYPOINT_URLS=(
+    "https://www.zolo.ca/calgary-real-estate/houses"
+    "https://www.zolo.ca/calgary-real-estate/condos"
+    "https://www.zolo.ca/calgary-real-estate/townhouses"
+  )
+  ZOLO_PROPERTY_TYPE_HINTS=("HOUSE" "CONDO" "TOWNHOUSE")
 fi
 
 say "Stack: ${STACK} (project $(compose_project))"
@@ -117,18 +122,42 @@ say "Running DB migrations"
 ./scripts/db-migrate.sh
 
 : > "${SCRAPER_LOG}"
-say "Running scraper (strategy=${SCRAPER_STRATEGY})"
-(
-  cd services/scraper
-  AWS_REGION="${AWS_REGION}" \
-  LOCALSTACK_ENDPOINT="http://localhost:${LOCALSTACK_PORT}" \
-  RAW_BUCKET="${RAW_BUCKET}" \
-  SCRAPER_STRATEGY="${SCRAPER_STRATEGY}" \
-  ZOLO_ENTRYPOINT_URL="${ZOLO_ENTRYPOINT_URL:-}" \
-  MAX_PAGES="${MAX_PAGES:-0}" \
-  DRY_RUN=false \
-  go run ./cmd/scraper
-) | tee "${SCRAPER_LOG}"
+if [[ "${SCRAPER_STRATEGY}" == "zolo_ca" ]]; then
+  run_id_base="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+  for i in "${!ZOLO_ENTRYPOINT_URLS[@]}"; do
+    hint="${ZOLO_PROPERTY_TYPE_HINTS[$i]}"
+    url="${ZOLO_ENTRYPOINT_URLS[$i]}"
+    suffix="$(echo "${hint}" | tr '[:upper:]' '[:lower:]')"
+    run_id="${run_id_base}-${suffix}"
+    say "Running scraper (strategy=zolo_ca hint=${hint} url=${url})"
+    (
+      cd services/scraper
+      AWS_REGION="${AWS_REGION}" \
+      LOCALSTACK_ENDPOINT="http://localhost:${LOCALSTACK_PORT}" \
+      RAW_BUCKET="${RAW_BUCKET}" \
+      SCRAPER_STRATEGY="zolo_ca" \
+      ZOLO_ENTRYPOINT_URL="${url}" \
+      ZOLO_PROPERTY_TYPE_HINT="${hint}" \
+      RUN_ID="${run_id}" \
+      MAX_PAGES="${MAX_PAGES:-0}" \
+      DRY_RUN=false \
+      go run ./cmd/scraper
+    ) | tee -a "${SCRAPER_LOG}"
+  done
+else
+  say "Running scraper (strategy=${SCRAPER_STRATEGY})"
+  (
+    cd services/scraper
+    AWS_REGION="${AWS_REGION}" \
+    LOCALSTACK_ENDPOINT="http://localhost:${LOCALSTACK_PORT}" \
+    RAW_BUCKET="${RAW_BUCKET}" \
+    SCRAPER_STRATEGY="${SCRAPER_STRATEGY}" \
+    ZOLO_ENTRYPOINT_URL="${ZOLO_ENTRYPOINT_URL:-}" \
+    MAX_PAGES="${MAX_PAGES:-0}" \
+    DRY_RUN=false \
+    go run ./cmd/scraper
+  ) | tee "${SCRAPER_LOG}"
+fi
 
 : > "${PARSER_LOG}"
 say "Running parser until SQS queue drains"

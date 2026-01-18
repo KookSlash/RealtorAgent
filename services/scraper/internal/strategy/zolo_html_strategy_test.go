@@ -24,7 +24,7 @@ func TestZoloExtractPage1CountAndFields(t *testing.T) {
 		t.Fatalf("expected at least 1 listing in fixture")
 	}
 
-	strategy := NewZoloHTMLStrategy("https://www.zolo.ca")
+	strategy := NewZoloHTMLStrategy("https://www.zolo.ca", "")
 	scrapedAt := time.Date(2025, 2, 3, 10, 11, 12, 0, time.UTC)
 
 	records, matched, err := strategy.TryExtract(context.Background(), htmlBytes, "https://www.zolo.ca/calgary-real-estate", scrapedAt)
@@ -62,6 +62,31 @@ func TestZoloExtractPage1CountAndFields(t *testing.T) {
 		if err := json.Unmarshal(record.SourcePayload, &payload); err != nil {
 			t.Fatalf("invalid source_payload json: %v", err)
 		}
+	}
+}
+
+func TestZoloExtractIncludesPropertyTypeHint(t *testing.T) {
+	fixture := fixturePath(t,
+		filepath.Join("..", "..", "testdata", "zolo", "Zolo-page1.html"),
+		filepath.Join("..", "..", "testdata", "zolo", "page-1.html"),
+	)
+	htmlBytes := readFixture(t, fixture)
+
+	strategy := NewZoloHTMLStrategy("https://www.zolo.ca", "CONDO")
+	scrapedAt := time.Date(2025, 2, 3, 10, 11, 12, 0, time.UTC)
+
+	records, matched, err := strategy.TryExtract(context.Background(), htmlBytes, "https://www.zolo.ca/calgary-real-estate", scrapedAt)
+	if err != nil {
+		t.Fatalf("extract error: %v", err)
+	}
+	if !matched {
+		t.Fatalf("expected strategy to match")
+	}
+	if len(records) == 0 {
+		t.Fatalf("expected at least 1 record")
+	}
+	if records[0].PropertyTypeHint != "CONDO" {
+		t.Fatalf("expected property_type_hint CONDO, got %q", records[0].PropertyTypeHint)
 	}
 }
 
