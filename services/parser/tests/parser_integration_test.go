@@ -301,6 +301,15 @@ func countHistoryForKey(t *testing.T, env *testEnv, key string) int {
 	return count
 }
 
+func getListingPropertyType(t *testing.T, env *testEnv, key string) string {
+	row := env.sqlDB.QueryRow("SELECT property_type FROM listings WHERE property_key=$1", key)
+	var value string
+	if err := row.Scan(&value); err != nil {
+		t.Fatalf("listing property_type lookup failed: %v", err)
+	}
+	return value
+}
+
 func readFixture(t *testing.T, name string) string {
 	t.Helper()
 	path := filepath.Join("testdata", name)
@@ -517,6 +526,19 @@ func TestZoloSourceIdentityAllowsEmptyPostal(t *testing.T) {
 	}
 	if historyCount != len(keys) {
 		t.Fatalf("expected %d price_history rows, got %d", len(keys), historyCount)
+	}
+	expectedTypes := []struct {
+		key   string
+		etype string
+	}{
+		{key: keys[0], etype: "HOUSE"},
+		{key: keys[1], etype: "CONDO"},
+		{key: keys[2], etype: "TOWNHOUSE"},
+	}
+	for _, expected := range expectedTypes {
+		if got := getListingPropertyType(t, env, expected.key); got != expected.etype {
+			t.Fatalf("expected property_type %s for %s, got %s", expected.etype, expected.key, got)
+		}
 	}
 
 	vaultRaw := fmt.Sprintf("vault/raw/%s", key)

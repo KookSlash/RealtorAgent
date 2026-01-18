@@ -49,20 +49,50 @@ func SnapshotHash(price string, beds string, baths string, sqft string, sourceLi
 }
 
 func NormalizePropertyType(input string) string {
-	value := strings.ToUpper(strings.TrimSpace(input))
-	value = strings.ReplaceAll(value, " ", "")
-	switch {
-	case strings.Contains(value, "HOUSE") || strings.Contains(value, "DETACHED"):
-		return "HOUSE"
-	case strings.Contains(value, "CONDO") || strings.Contains(value, "APARTMENT"):
-		return "CONDO"
-	case strings.Contains(value, "TOWN"):
-		return "TOWNHOUSE"
-	case strings.Contains(value, "DUPLEX"):
-		return "DUPLEX"
-	case strings.Contains(value, "LAND") || strings.Contains(value, "LOT"):
-		return "LAND"
-	default:
+	value := strings.ToLower(strings.TrimSpace(input))
+	value = strings.ReplaceAll(value, "/", " ")
+	value = strings.ReplaceAll(value, "-", " ")
+	value = strings.ReplaceAll(value, "_", " ")
+	value = strings.ReplaceAll(value, ",", " ")
+	value = multiSpaceRegex.ReplaceAllString(value, " ")
+	value = strings.TrimSpace(value)
+
+	if value == "" {
 		return "OTHER"
 	}
+
+	compact := strings.ReplaceAll(value, " ", "")
+	if containsAny(value, compact, []string{"condo", "apartment", "apt", "unit", "flat"}) {
+		return "CONDO"
+	}
+	if containsAny(value, compact, []string{"townhouse", "row", "rowhouse", "row house", "terrace"}) {
+		return "TOWNHOUSE"
+	}
+	if containsAny(value, compact, []string{"duplex", "semi detached", "half duplex"}) {
+		return "DUPLEX"
+	}
+	if containsAny(value, compact, []string{"land", "lot", "vacant"}) {
+		return "LAND"
+	}
+	if containsAny(value, compact, []string{"house", "detached", "single family", "bungalow"}) {
+		return "HOUSE"
+	}
+
+	return "OTHER"
+}
+
+func containsAny(normalized string, compact string, tokens []string) bool {
+	for _, token := range tokens {
+		if token == "" {
+			continue
+		}
+		if strings.Contains(normalized, token) {
+			return true
+		}
+		compactToken := strings.ReplaceAll(token, " ", "")
+		if compactToken != "" && strings.Contains(compact, compactToken) {
+			return true
+		}
+	}
+	return false
 }

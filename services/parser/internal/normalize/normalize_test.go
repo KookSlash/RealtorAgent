@@ -94,6 +94,31 @@ func TestSnapshotHashChanges(t *testing.T) {
 	}
 }
 
+func TestNormalizePropertyType(t *testing.T) {
+	cases := []struct {
+		name   string
+		input  string
+		expect string
+	}{
+		{name: "detached", input: "Detached", expect: "HOUSE"},
+		{name: "condo apartment", input: "Condo Apartment", expect: "CONDO"},
+		{name: "row townhouse", input: "Row/Townhouse", expect: "TOWNHOUSE"},
+		{name: "half duplex", input: "Half Duplex", expect: "DUPLEX"},
+		{name: "vacant land", input: "Vacant Land", expect: "LAND"},
+		{name: "unknown", input: "Castle", expect: "OTHER"},
+		{name: "single family residence", input: "SingleFamilyResidence", expect: "HOUSE"},
+		{name: "semi detached", input: "Semi-Detached", expect: "DUPLEX"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NormalizePropertyType(tc.input); got != tc.expect {
+				t.Fatalf("expected %q, got %q", tc.expect, got)
+			}
+		})
+	}
+}
+
 func FuzzNormalizeAddress(f *testing.F) {
 	f.Add("123 Main St")
 	f.Add("Unit #5B")

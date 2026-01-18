@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/listing.dart';
 import '../providers.dart';
+import 'listing_detail_screen.dart';
 import 'listings_controller.dart';
 
 class ListingsScreen extends ConsumerStatefulWidget {
@@ -155,22 +156,25 @@ class _ListingsScreenState extends ConsumerState<ListingsScreen> {
         final item = state.items[index];
         return Card(
           margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.address,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(_primaryLine(item)),
-                const SizedBox(height: 4),
-                Text(_scoreLine(item)),
-                const SizedBox(height: 4),
-                Text('Last seen: ${_formatDate(item.lastSeenAt)}'),
-              ],
+          child: InkWell(
+            onTap: () => _openDetail(context, item.propertyKey),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.address,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_primaryLine(item)),
+                  const SizedBox(height: 4),
+                  Text(_scoreLine(item)),
+                  const SizedBox(height: 4),
+                  Text('Last seen: ${_formatDate(item.lastSeenAt)}'),
+                ],
+              ),
             ),
           ),
         );
@@ -212,6 +216,14 @@ class _ListingsScreenState extends ConsumerState<ListingsScreen> {
         state.items.isEmpty ? 0 : (state.page - 1) * state.pageSize + 1;
     final end = start == 0 ? 0 : start + state.items.length - 1;
     return '$start-$end of ${state.total}';
+  }
+
+  void _openDetail(BuildContext context, String propertyKey) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ListingDetailScreen(propertyKey: propertyKey),
+      ),
+    );
   }
 }
 
